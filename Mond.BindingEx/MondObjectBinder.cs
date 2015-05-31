@@ -31,6 +31,32 @@ namespace Mond.BindingEx
             return Bind( type, out dummy, state, options );
         }
 
+        public static MondValue Bind( Delegate function, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
+        {
+            return Bind( function, function.Method.Name, state, options );
+        }
+
+        public static MondValue Bind( Delegate function, string name, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
+        {
+            if( options.HasFlag( MondBindingOptions.AutoLock ) )
+                throw new ArgumentException( "MondBindingOptions.AutoLock is not valid when binding delegates", "options" );
+
+            var shim = BindingUtils.CreateStaticMethodShim( function );
+
+            if( options.HasFlag( MondBindingOptions.AutoInsert ) )
+            {
+                if( state == null )
+                    throw new ArgumentNullException( "Must specify a valid MondState when specifying MondBindingOptions.AutoInset", "state" );
+
+                if( String.IsNullOrWhiteSpace( name ) )
+                    throw new ArgumentException( "Must provide a valid name when specifying MondBindingOptions.AutoInsert", "name" );
+
+                state[name] = shim;
+            }
+
+            return shim;
+        }
+
         public static MondValue Bind( Type type, out MondValue prototype, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
         {
             if( options.HasFlag( MondBindingOptions.AutoInsert ) && state == null )

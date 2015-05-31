@@ -6,7 +6,7 @@ namespace Mond.BindingEx
 {
     internal static class BindingUtils
     {
-        private struct ReflectedMember<T> where T : MemberInfo
+        private struct ReflectedMember<T>
         {
             public bool Matched;
             public T Method;
@@ -43,6 +43,31 @@ namespace Mond.BindingEx
             };
         }
 
+        public static MondFunction CreateStaticMethodShim( Delegate function )
+        {
+            return delegate( MondState state, MondValue[] args )
+            {
+                var matcher = CreateTargetMatcher<Delegate>( args, null );
+                var matched = function.GetInvocationList().Select( m => matcher( m ) ).Where( m => m.Matched );
+
+                if( matched.Count() > 1 )
+                    throw new AmbiguousMatchException( "More than one delegate in the invokation list matches the argument list" );
+
+                if( matched.Count() == 0 )
+                    throw new MissingMethodException( "No delegate in the invokation list matches the argument list" );
+
+                var target = matched.First();
+                var values = TypeConverter.MarshalToClr( args, target.Types );
+                var result = function.DynamicInvoke( values );
+
+                if( target.Method.Method.ReturnType == typeof( void ) )
+                    return MondValue.Undefined;
+
+                var mondType = TypeConverter.ToMondType( result.GetType() );
+                return TypeConverter.MarshalToMond( result, mondType );
+            };
+        }
+
         public static MondInstanceFunction CreateInstanceMethodShim( Type type, string name )
         {
             return delegate( MondState state, MondValue instance, MondValue[] args )
@@ -59,16 +84,25 @@ namespace Mond.BindingEx
             };
         }
 
-        private static Func<T, ReflectedMember<T>> CreateTargetMatcher<T>( MondValue[] args, string name ) where T : MemberInfo
+        private static Func<T, ReflectedMember<T>> CreateTargetMatcher<T>( MondValue[] args, string name )
         {
-            if( typeof( T ) != typeof( ConstructorInfo ) && typeof( T ) != typeof( MethodInfo ) )
-                throw new ArgumentException( "Generic argument must be either ConstructorInfo or MethodInfo", "T" );
+            if( typeof( T ) != typeof( ConstructorInfo ) && typeof( T ) != typeof( MethodInfo ) && typeof( T ) != typeof( Delegate ) )
+                throw new ArgumentException( "Generic argument must be either ConstructorInfo, MethodInfo, or Delegate", "T" );
 
             return delegate( T member )
             {
                 if( name != null )
                 {
-                    if( member.Name != name )
+                    var memberName = null as string;
+
+                    if( member is ConstructorInfo )
+                        memberName = ( member as ConstructorInfo ).Name;
+                    else if( member is MethodInfo )
+                        memberName = ( member as MethodInfo ).Name;
+                    else if( member is Delegate )
+                        memberName = ( member as Delegate ).Method.Name;
+
+                    if( memberName != name )
                         return new ReflectedMember<T> { Matched = false };
                 }
 
@@ -76,9 +110,10 @@ namespace Mond.BindingEx
 
                 if( member is ConstructorInfo )
                     all = ( member as ConstructorInfo ).GetParameters();
-
-                if( member is MethodInfo )
+                else if( member is MethodInfo )
                     all = ( member as MethodInfo ).GetParameters();
+                else if( member is Delegate )
+                    all = ( member as Delegate ).Method.GetParameters();
 
                 var required = all.Reject( p => p.IsOptional ).ToArray();
 
@@ -105,8 +140,7 @@ namespace Mond.BindingEx
 
             if( typeof( T ) == typeof( ConstructorInfo ) )
                 members = type.GetConstructors( flags );
-
-            if( typeof( T ) == typeof( MethodInfo ) )
+            else if( typeof( T ) == typeof( MethodInfo ) )
                 members = type.GetMethods( flags );
 
             var matched = members.Select( m => matcher( (T)m ) ).Where( m => m.Matched );

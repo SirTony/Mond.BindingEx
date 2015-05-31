@@ -11,7 +11,7 @@ An alternative binding API for Mond that uses (read: abuses) reflection and LINQ
   - [x] Constructor binding
   - [ ] Event binding (*not yet implemented*)
   - [ ] Nested object binding (*not yet implemented*)
-- [ ] Function binding (*cannot yet bind individual functions*)
+- [x] Delegate binding
 - [x] Enum binding
 - [x] Method parameter/return type conversion (*partial*)
   - [x] Automatic conversion of basic types (*`char`, `bool`, `string`, `sbyte`, `byte`, `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `float`, and `double`*)

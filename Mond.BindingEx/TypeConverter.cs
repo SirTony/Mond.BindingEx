@@ -52,6 +52,9 @@ namespace Mond.BindingEx
 
         public static bool MatchType( MondValueType mondType, Type clrType )
         {
+            if( clrType == typeof( MondValue ) )
+                return true;
+
             switch( mondType )
             {
                 case MondValueType.False:
@@ -89,7 +92,8 @@ namespace Mond.BindingEx
             if( !MatchType( expectedType, value.GetType() ) )
                 throw new ArgumentException( "Given value does not match expected type", "value" );
 
-            Console.WriteLine( value.GetType().Name );
+            if( value is MondValue )
+                return (MondValue)value;
 
             switch( expectedType )
             {
