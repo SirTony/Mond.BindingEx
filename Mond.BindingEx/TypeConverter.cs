@@ -47,6 +47,9 @@ namespace Mond.BindingEx
             if( type == typeof( char ) )
                 return value.Type == MondValueType.String && value.ToString().Length == 1;
 
+            if( value.Type == MondValueType.Object )
+                return value.UserData != null && value.UserData.GetType() == type;
+
             return MatchType( value.Type, type );
         }
 
@@ -65,11 +68,17 @@ namespace Mond.BindingEx
                         return clrType == typeof( string );
 
                 case MondValueType.Number:
-                    return NumericTypes.Contains( clrType );
+                    return NumericTypes.Contains( clrType ) || clrType.IsEnum;
 
                 case MondValueType.Null:
                 case MondValueType.Undefined:
                     return !clrType.IsValueType;
+
+                case MondValueType.Function:
+                    return clrType == typeof( MulticastDelegate ) || clrType == typeof( Delegate );
+                    
+                case MondValueType.Object:
+                    throw new NotSupportedException( "Object type matching is not supported by this overload of MatchType" );
 
                 default:
                     UnsupportedMondTypeError( mondType );
@@ -113,6 +122,18 @@ namespace Mond.BindingEx
                 case MondValueType.Number:
                     return (double)Convert.ChangeType( value, typeof( double ) );
 
+                case MondValueType.Function:
+                    if( value is MulticastDelegate )
+                        return MondObjectBinder.Bind( value as MulticastDelegate );
+
+                    if( value is Delegate )
+                        return MondObjectBinder.Bind( value as Delegate );
+
+                    throw new NotSupportedException( "Unsupported delegate type" );
+
+                case MondValueType.Object:
+                    return MondObjectBinder.Bind( value.GetType(), value, null, MondBindingOptions.AutoLock );
+
                 default:
                     UnsupportedMondTypeError( expectedType );
                     break;
@@ -121,18 +142,21 @@ namespace Mond.BindingEx
             return null; // we should never get here
         }
 
-        public static object[] MarshalToClr( MondValue[] values, Type[] expectedTypes )
+        public static object[] MarshalToClr( MondValue[] values, Type[] expectedTypes, MondState state )
         {
             if( !MatchTypes( values, expectedTypes ) )
                 throw new ArgumentException( "Given values do not match expected types", "values" );
 
-            return values.Zip( expectedTypes, ( a, b ) => new { Value = a, ExpectedType = b } ).Select( x => MarshalToClr( x.Value, x.ExpectedType ) ).ToArray();
+            return values.Zip( expectedTypes, ( a, b ) => new { Value = a, ExpectedType = b } ).Select( x => MarshalToClr( x.Value, x.ExpectedType, state ) ).ToArray();
         }
 
-        public static object MarshalToClr( MondValue value, Type expectedType )
+        public static object MarshalToClr( MondValue value, Type expectedType, MondState state )
         {
             if( !MatchType( value, expectedType ) )
                 throw new ArgumentException( "Given value does not match expected type", "value" );
+
+            if( expectedType == typeof( MondValue ) )
+                return value;
 
             switch( value.Type )
             {
@@ -148,7 +172,32 @@ namespace Mond.BindingEx
                     return value.ToString();
 
                 case MondValueType.Number:
+                    if( expectedType.IsEnum )
+                    {
+                        var underlying = Enum.GetUnderlyingType( expectedType );
+                        var rawValue = Convert.ChangeType( (double)value, underlying );
+                        var valueName = Enum.GetName( expectedType, rawValue );
+
+                        return Enum.Parse( expectedType, valueName );
+                    }
+
                     return Convert.ChangeType( (double)value, expectedType );
+
+                case MondValueType.Object:
+                    return value.UserData;
+
+                case MondValueType.Function:
+                    Func<object[], object> shim = delegate( object[] args )
+                    {
+                        var mondTypes = ToMondTypes( args.Select( a => a.GetType() ).ToArray() );
+                        var mondValues = MarshalToMond( args, mondTypes );
+                        var result = state.Call( value, mondValues );
+                        var clrType = ToClrType( result );
+
+                        return MarshalToClr( result, clrType, state );
+                    };
+
+                    return shim;
 
                 default:
                     UnsupportedMondTypeError( value.Type );
@@ -156,6 +205,11 @@ namespace Mond.BindingEx
             }
 
             return null; // we should never get here
+        }
+
+        public static MondValueType[] ToMondTypes( Type[] types )
+        {
+            return types.Select( ToMondType ).ToArray();
         }
 
         public static MondValueType ToMondType( Type type )
@@ -169,59 +223,49 @@ namespace Mond.BindingEx
             if( type == typeof( bool ) )
                 return MondValueType.True;
 
+            if( type == typeof( MulticastDelegate ) || type == typeof( Delegate ) )
+                return MondValueType.Function;
+
+            if( type.IsClass )
+                return MondValueType.Object;
+
             UnsupportedClrTypeError( type );
             return MondValueType.Undefined; // we should never get here
         }
 
-        //public static Type[] ToClrTypes( params MondValue[] values )
-        //{
-        //    if( values == null || values.Length == 0 )
-        //        return Type.EmptyTypes;
+        public static Type[] ToClrTypes( MondValue[] values )
+        {
+            return values.Select( ToClrType ).ToArray();
+        }
 
-        //    var types = new List<Type>( values.Length );
+        public static Type ToClrType( MondValue value )
+        {
+            switch( value.Type )
+            {
+                case MondValueType.False:
+                case MondValueType.True:
+                    return typeof( bool );
 
-        //    foreach( var value in values )
-        //    {
-        //        switch( value.Type )
-        //        {
-        //            case MondValueType.False:
-        //            case MondValueType.True:
-        //                types.Add( typeof( bool ) );
-        //                break;
+                case MondValueType.Function:
+                    return typeof( MulticastDelegate );
 
-        //            case MondValueType.Function:
-        //                types.Add( typeof( MulticastDelegate ) );
-        //                break;
+                case MondValueType.Number:
+                    return typeof( double );
 
-        //            case MondValueType.Null:
-        //            case MondValueType.Undefined:
-        //                types.Add( typeof( object ) );
-        //                break;
+                case MondValueType.Object:
+                    if( value.UserData != null )
+                        return value.UserData.GetType();
 
-        //            case MondValueType.Number:
-        //                types.Add( typeof( double ) );
-        //                break;
+                    goto default;
 
-        //            case MondValueType.Object:
-        //                if( value.UserData != null )
-        //                    types.Add( value.UserData.GetType() );
-        //                else
-        //                    goto default;
+                case MondValueType.String:
+                    return typeof( string );
 
-        //                break;
-
-        //            case MondValueType.String:
-        //                types.Add( typeof( string ) );
-        //                break;
-
-        //            default:
-        //                UnsupportedTypeError( value.Type );
-        //                break;
-        //        }
-        //    }
-
-        //    return types.ToArray();
-        //}
+                default:
+                    UnsupportedMondTypeError( value.Type );
+                    return null; // we should never get here
+            }
+        }
 
         private static void UnsupportedMondTypeError( MondValueType type )
         {

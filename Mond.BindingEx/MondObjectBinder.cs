@@ -25,15 +25,55 @@ namespace Mond.BindingEx
             return Bind( typeof( T ), out prototype, state, options );
         }
 
+        public static MondValue Bind<T>( T instance, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
+        {
+            return Bind( typeof( T ), instance, state, options );
+        }
+
+        public static MondValue Bind<T>( T instance, out MondValue prototype, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
+        {
+            return Bind( typeof( T ), instance, out prototype, state, options );
+        }
+
+        public static MondValue Bind( Type type, object instance, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
+        {
+            var dummy = null as MondValue;
+            return Bind( type, instance, out dummy, state, options );
+        }
+
+        public static MondValue Bind( Type type, object instance, out MondValue prototype, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
+        {
+            if( options.HasFlag( MondBindingOptions.AutoInsert ) )
+                throw new ArgumentException( "MondBindingOptions.AutoInsert is not valid when binding object instances" );
+
+            var binding = new MondValue( state );
+            var tempBinding = Bind( type, out prototype, state, options );
+
+            binding.Prototype = prototype;
+            binding.UserData = instance;
+
+            return binding;
+        }
+
         public static MondValue Bind( Type type, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
         {
             var dummy = null as MondValue;
             return Bind( type, out dummy, state, options );
         }
 
+        public static MondValue Bind( MulticastDelegate function, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
+        {
+            return Bind( function as Delegate, state, options );
+        }
+
         public static MondValue Bind( Delegate function, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
         {
             return Bind( function, function.Method.Name, state, options );
+        }
+
+        public static MondValue Bind( MulticastDelegate function, string name, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
+        {
+            return Bind( function as Delegate, name, state, options );
         }
 
         public static MondValue Bind( Delegate function, string name, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
@@ -117,37 +157,49 @@ namespace Mond.BindingEx
 
         private static MondValue BindClass( Type type, MondState state, out MondValue prototype )
         {
+            if( type.IsAbstract && !type.IsSealed )
+                throw new ArgumentException( "Cannot bind abstract classes", "type" );
+
             prototype = new MondValue( state );
             var binding = new MondValue( state );
             var methodComparer = new MethodNameComparer();
             var propertyComparer = new PropertyNameComparer();
+            var isStatic = type.IsSealed && type.IsAbstract;
+            var methods = null as IEnumerable<MethodInfo>;
+            var properties = null as IEnumerable<PropertyInfo>;
+
+            if( isStatic )
+                prototype = null;
 
             Func<MethodInfo, bool> IsOperator = m => m.GetCustomAttribute<MondOperatorAttribute>() != null;
             Func<MethodInfo, bool> IsProperty = m => m.IsSpecialName && ( m.Name.StartsWith( "get_" ) || m.Name.StartsWith( "set_" ) );
             Func<MemberInfo, bool> ShouldIgnore = m => m.GetCustomAttribute<MondIgnoreAttribute>() != null;
 
-            // Hook up instance methods
-            var methods = type.GetMethods( BindingFlags.Public | BindingFlags.Instance )
+            if( !isStatic )
+            {
+                // Hook up instance methods
+                methods = type.GetMethods( BindingFlags.Public | BindingFlags.Instance )
                               .Reject( IsOperator )
                               .Reject( IsProperty )
                               .Reject( m => ShouldIgnore( m ) )
                               .Distinct( methodComparer );
 
-            foreach( var method in methods )
-            {
-                // Ignore the methods inherited from System.Object
-                // ToString will get aliased to the __string metamethod later
-                if( method.Name == "ToString" || method.Name == "GetHashCode" || method.Name == "Equals" || method.Name == "GetType" )
-                    continue;
+                foreach( var method in methods )
+                {
+                    // Ignore the methods inherited from System.Object
+                    // ToString will get aliased to the __string metamethod later
+                    if( method.Name == "ToString" || method.Name == "GetHashCode" || method.Name == "Equals" || method.Name == "GetType" )
+                        continue;
 
-                var shim = BindingUtils.CreateInstanceMethodShim( type, method.Name );
-                prototype[method.Name] = shim;
-            }
+                    var shim = BindingUtils.CreateInstanceMethodShim( type, method.Name );
+                    prototype[method.Name] = shim;
+                }
 
-            if( !methods.Any( m => m.Name == "__string" ) )
-            {
-                var shim = BindingUtils.CreateInstanceMethodShim( type, "ToString" );
-                prototype["__string"] = shim;
+                if( !methods.Any( m => m.Name == "__string" ) )
+                {
+                    var shim = BindingUtils.CreateInstanceMethodShim( type, "ToString" );
+                    prototype["__string"] = shim;
+                }
             }
 
             // Hook up static methods
@@ -179,29 +231,32 @@ namespace Mond.BindingEx
                 state["__ops"][attr.Operator] = shim;
             }
 
-            // Hook up instance properties
-            var properties = type.GetProperties( BindingFlags.Public | BindingFlags.Instance )
+            if( !isStatic )
+            {
+                // Hook up instance properties
+                properties = type.GetProperties( BindingFlags.Public | BindingFlags.Instance )
                                  .Reject( m => ShouldIgnore( m ) )
                                  .Distinct( propertyComparer );
 
-            foreach( var prop in properties )
-            {
-                var method = null as MethodInfo;
-                var shim = null as MondInstanceFunction;
-                var name = null as string;
-
-                if( ( method = prop.GetGetMethod() ) != null )
+                foreach( var prop in properties )
                 {
-                    shim = BindingUtils.CreateInstanceMethodShim( type, method.Name );
-                    name = "get{0}".With( prop.Name );
-                    prototype[name] = shim;
-                }
+                    var method = null as MethodInfo;
+                    var shim = null as MondInstanceFunction;
+                    var name = null as string;
 
-                if( ( method = prop.GetSetMethod() ) != null )
-                {
-                    shim = BindingUtils.CreateInstanceMethodShim( type, method.Name );
-                    name = "set{0}".With( prop.Name );
-                    prototype[name] = shim;
+                    if( ( method = prop.GetGetMethod() ) != null )
+                    {
+                        shim = BindingUtils.CreateInstanceMethodShim( type, method.Name );
+                        name = "get{0}".With( prop.Name );
+                        prototype[name] = shim;
+                    }
+
+                    if( ( method = prop.GetSetMethod() ) != null )
+                    {
+                        shim = BindingUtils.CreateInstanceMethodShim( type, method.Name );
+                        name = "set{0}".With( prop.Name );
+                        prototype[name] = shim;
+                    }
                 }
             }
 
@@ -231,8 +286,9 @@ namespace Mond.BindingEx
                 }
             }
 
-            // Hook up the constructor
-            binding["new"] = BindingUtils.CreateConstructorShim( type, prototype );
+            if( !isStatic )
+                // Hook up the constructor
+                binding["new"] = BindingUtils.CreateConstructorShim( type, prototype );
 
             return binding;
         }

@@ -18,7 +18,7 @@ namespace Mond.BindingEx
             return delegate( MondState state, MondValue[] args )
             {
                 var target = GetTarget<ConstructorInfo>( type, null, args, BindingFlags.Public | BindingFlags.Instance );
-                var values = TypeConverter.MarshalToClr( args, target.Types );
+                var values = TypeConverter.MarshalToClr( args, target.Types, state );
                 var result = new MondValue( state );
                 result.UserData = target.Method.Invoke( values );
                 result.Prototype = prototype;
@@ -32,7 +32,7 @@ namespace Mond.BindingEx
             return delegate( MondState state, MondValue[] args )
             {
                 var target = GetTarget<MethodInfo>( type, name, args, BindingFlags.Public | BindingFlags.Static );
-                var values = TypeConverter.MarshalToClr( args, target.Types );
+                var values = TypeConverter.MarshalToClr( args, target.Types, state );
                 var result = target.Method.Invoke( null, values );
 
                 if( target.Method.ReturnType == typeof( void ) )
@@ -57,7 +57,7 @@ namespace Mond.BindingEx
                     throw new MissingMethodException( "No delegate in the invokation list matches the argument list" );
 
                 var target = matched.First();
-                var values = TypeConverter.MarshalToClr( args, target.Types );
+                var values = TypeConverter.MarshalToClr( args, target.Types, state );
                 var result = function.DynamicInvoke( values );
 
                 if( target.Method.Method.ReturnType == typeof( void ) )
@@ -73,7 +73,7 @@ namespace Mond.BindingEx
             return delegate( MondState state, MondValue instance, MondValue[] args )
             {
                 var target = GetTarget<MethodInfo>( type, name, args, BindingFlags.Public | BindingFlags.Instance );
-                var values = TypeConverter.MarshalToClr( args, target.Types );
+                var values = TypeConverter.MarshalToClr( args, target.Types, state );
                 var result = target.Method.Invoke( instance.UserData, values );
 
                 if( target.Method.ReflectedType == typeof( void ) )
