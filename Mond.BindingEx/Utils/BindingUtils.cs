@@ -6,13 +6,6 @@ namespace Mond.BindingEx
 {
     internal static class BindingUtils
     {
-        private struct ReflectedMember<T>
-        {
-            public bool Matched;
-            public T Method;
-            public Type[] Types;
-        }
-
         public static MondFunction CreateConstructorShim( Type type, MondValue prototype )
         {
             return delegate( MondState state, MondValue[] args )
@@ -143,7 +136,7 @@ namespace Mond.BindingEx
             else if( typeof( T ) == typeof( MethodInfo ) )
                 members = type.GetMethods( flags );
 
-            var matched = members.Select( m => matcher( (T)m ) ).Where( m => m.Matched );
+            var matched = members.Select( m => matcher( (T)m ) ).Where( m => m.Matched ).Distinct( new NumericTypeComparer<T>() );
 
             if( matched.Count() > 1 )
                 throw new AmbiguousMatchException( "More than one {0} in {1} matches the argument list".With( typeof( T ) == typeof( ConstructorInfo ) ? "constructor" : "method", type.Name ) );

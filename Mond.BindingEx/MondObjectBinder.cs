@@ -117,7 +117,7 @@ namespace Mond.BindingEx
             if( type.IsEnum )
                 binding = BindEnum( type, state );
 
-            if( type.IsClass )
+            if( type.IsClass || type.IsStruct() )
                 binding = BindClass( type, state, out prototype );
 
             if( options.HasFlag( MondBindingOptions.AutoLock ) )
@@ -188,7 +188,7 @@ namespace Mond.BindingEx
                 {
                     // Ignore the methods inherited from System.Object
                     // ToString will get aliased to the __string metamethod later
-                    if( method.Name == "ToString" || method.Name == "GetHashCode" || method.Name == "Equals" || method.Name == "GetType" )
+                    if( /* method.Name == "ToString" || */ method.Name == "GetHashCode" || method.Name == "Equals" || method.Name == "GetType" )
                         continue;
 
                     var shim = BindingUtils.CreateInstanceMethodShim( type, method.Name );
