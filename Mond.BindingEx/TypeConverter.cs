@@ -75,7 +75,8 @@ namespace Mond.BindingEx
                     return !clrType.IsValueType;
 
                 case MondValueType.Function:
-                    return clrType == typeof( MulticastDelegate ) || clrType == typeof( Delegate );
+                    return clrType == typeof( MulticastDelegate ) || clrType == typeof( Delegate )
+                        || clrType.BaseType == typeof( MulticastDelegate ) || clrType.BaseType == typeof( Delegate );
                     
                 case MondValueType.Object:
                     throw new NotSupportedException( "Object type matching is not supported by this overload of MatchType" );
@@ -123,10 +124,10 @@ namespace Mond.BindingEx
                     return (double)Convert.ChangeType( value, typeof( double ) );
 
                 case MondValueType.Function:
-                    if( value is MulticastDelegate )
+                    if( value is MulticastDelegate || value.GetType().BaseType == typeof( MulticastDelegate ) )
                         return MondObjectBinder.Bind( value as MulticastDelegate );
 
-                    if( value is Delegate )
+                    if( value is Delegate || value.GetType().BaseType == typeof( Delegate ) )
                         return MondObjectBinder.Bind( value as Delegate );
 
                     throw new NotSupportedException( "Unsupported delegate type" );
@@ -189,11 +190,18 @@ namespace Mond.BindingEx
                 case MondValueType.Function:
                     Func<object[], object> shim = delegate( object[] args )
                     {
-                        var mondTypes = ToMondTypes( args.Select( a => a.GetType() ).ToArray() );
-                        var mondValues = MarshalToMond( args, mondTypes );
-                        var result = state.Call( value, mondValues );
-                        var clrType = ToClrType( result );
+                        var result = null as MondValue;
 
+                        if( args == null )
+                            result = state.Call( value );
+                        else
+                        {
+                            var mondTypes = ToMondTypes( args.Select( a => a.GetType() ).ToArray() );
+                            var mondValues = MarshalToMond( args, mondTypes );
+                            result = state.Call( value, mondValues );
+                        }
+
+                        var clrType = ToClrType( result );
                         return MarshalToClr( result, clrType, state );
                     };
 
