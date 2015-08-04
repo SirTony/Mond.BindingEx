@@ -186,9 +186,8 @@ namespace Mond.BindingEx
 
                 foreach( var method in methods )
                 {
-                    // Ignore the methods inherited from System.Object
-                    // ToString will get aliased to the __string metamethod later
-                    if( /* method.Name == "ToString" || */ method.Name == "GetHashCode" || method.Name == "Equals" || method.Name == "GetType" )
+                    // Ignore some methods inherited from System.Object
+                    if( /* method.Name == "ToString" || method.Name == "GetHashCode" || */ method.Name == "Equals" || method.Name == "GetType" )
                         continue;
 
                     var shim = BindingUtils.CreateInstanceMethodShim( type, method.Name );

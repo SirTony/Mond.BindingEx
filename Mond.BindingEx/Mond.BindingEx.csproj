@@ -30,8 +30,9 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Mond">
-      <HintPath>..\packages\Mond.0.2.0-pre\lib\net45\Mond.dll</HintPath>
+    <Reference Include="Mond, Version=0.2.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Mond.0.2.1-pre\lib\net45\Mond.dll</HintPath>
+      <Private>True</Private>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />

@@ -65,6 +65,9 @@ namespace Mond.BindingEx
         {
             return delegate( MondState state, MondValue instance, MondValue[] args )
             {
+                if( name == "ToString" && args != null && args.Length >= 1 && args[0] == instance )
+                    args = args.Skip( 1 ).ToArray();
+
                 var target = GetTarget<MethodInfo>( type, name, args, BindingFlags.Public | BindingFlags.Instance );
                 var values = TypeConverter.MarshalToClr( args, target.Types, state );
                 var result = target.Method.Invoke( instance.UserData, values );

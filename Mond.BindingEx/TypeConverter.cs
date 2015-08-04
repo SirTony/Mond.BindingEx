@@ -48,7 +48,7 @@ namespace Mond.BindingEx
                 return value.Type == MondValueType.String && value.ToString().Length == 1;
 
             if( value.Type == MondValueType.Object )
-                return value.UserData != null && value.UserData.GetType() == type;
+                return value.UserData != null && type.IsAssignableFrom( value.UserData.GetType() );
 
             return MatchType( value.Type, type );
         }
