@@ -11,10 +11,10 @@ namespace Mond.BindingEx
         public MondOperatorAttribute( string @operator )
         {
             if( !Utils.IsOperatorToken( @operator ) )
-                throw new ArgumentException( "'{0}' is not a valid operator".With( @operator ), "@operator" );
+                throw new ArgumentException( "'{0}' is not a valid operator".With( @operator ), "operator" );
 
             if( Utils.OperatorExists( @operator ) )
-                throw new ArgumentException( "Cannot override built-in operator '{0}'".With( @operator ), "@operator" );
+                throw new ArgumentException( "Cannot override built-in operator '{0}'".With( @operator ), "operator" );
 
             this.@operator = @operator;
         }
