@@ -72,7 +72,7 @@ namespace Mond.BindingEx
                 var values = TypeConverter.MarshalToClr( args, target.Types, state );
                 var result = target.Method.Invoke( instance.UserData, values );
 
-                if( target.Method.ReflectedType == typeof( void ) )
+                if( target.Method.ReturnType == typeof( void ) )
                     return MondValue.Undefined;
 
                 var mondType = TypeConverter.ToMondType( result.GetType() );
