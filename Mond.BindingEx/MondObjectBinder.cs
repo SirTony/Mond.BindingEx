@@ -86,7 +86,7 @@ namespace Mond.BindingEx
             if( options.HasFlag( MondBindingOptions.AutoInsert ) )
             {
                 if( state == null )
-                    throw new ArgumentNullException( "Must specify a valid MondState when specifying MondBindingOptions.AutoInset", "state" );
+                    throw new ArgumentNullException( "state", "Must specify a valid MondState when specifying MondBindingOptions.AutoInset" );
 
                 if( String.IsNullOrWhiteSpace( name ) )
                     throw new ArgumentException( "Must provide a valid name when specifying MondBindingOptions.AutoInsert", "name" );
@@ -100,7 +100,7 @@ namespace Mond.BindingEx
         public static MondValue Bind( Type type, out MondValue prototype, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
         {
             if( options.HasFlag( MondBindingOptions.AutoInsert ) && state == null )
-                throw new ArgumentNullException( "A valid MondState must be given when MondBindingOptions.AutoInsert is present", "state" );
+                throw new ArgumentNullException( "state", "A valid MondState must be given when MondBindingOptions.AutoInsert is present" );
 
             prototype = null as MondValue;
 
