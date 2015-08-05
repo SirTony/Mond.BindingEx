@@ -86,10 +86,13 @@ namespace Mond.BindingEx
             if( options.HasFlag( MondBindingOptions.AutoInsert ) )
             {
                 if( state == null )
-                    throw new ArgumentNullException( "state", "Must specify a valid MondState when specifying MondBindingOptions.AutoInset" );
+                    throw new ArgumentNullException( "state", "Must specify a valid MondState when specifying MondBindingOptions.AutoInsert" );
 
                 if( String.IsNullOrWhiteSpace( name ) )
                     throw new ArgumentException( "Must provide a valid name when specifying MondBindingOptions.AutoInsert", "name" );
+
+                if( function.GetType().IsGenericType )
+                    name = name.Substring( 0, name.IndexOf( '`' ) );
 
                 state[name] = shim;
             }
@@ -130,7 +133,11 @@ namespace Mond.BindingEx
             }
 
             if( options.HasFlag( MondBindingOptions.AutoInsert ) )
-                state[type.Name] = binding;
+            {
+                // Generic types have names in the form of TypeName`n where n is the number of generic parameters
+                var name = type.IsGenericType ? type.Name.Substring( 0, type.Name.IndexOf( '`' ) ) : type.Name;
+                state[name] = binding;
+            }
 
             BindingCache.Add( type, binding );
             return binding;
@@ -150,7 +157,7 @@ namespace Mond.BindingEx
             foreach( var pair in pairs )
                 binding[pair.Name] = pair.Value;
 
-            binding["hasFlag"] = BindingUtils.CreateStaticMethodShim( typeof( MondHelperMethods ), "EnumHasFlag" );
+            binding["hasFlag"] = Bind( new Func<int, int, bool>( ( enumValue, flagValue ) => ( enumValue & flagValue ) == flagValue ), state );
 
             return binding;
         }
@@ -210,8 +217,36 @@ namespace Mond.BindingEx
 
             foreach( var method in methods )
             {
+                if( type.ContainsGenericParameters && method.Name == "__call" )
+                    throw new BindingException( "Cannot define static __call metamethod on un-initialized generic types", type, method );
+
                 var shim = BindingUtils.CreateStaticMethodShim( type, method.Name );
                 binding[method.Name] = shim;
+            }
+
+            if( type.ContainsGenericParameters )
+            {
+                binding["__call"] = new MondFunction( delegate ( MondState _state, MondValue[] values )
+                {
+                    var types = new Type[values.Length - 1];
+                    var len = values.Length;
+
+                    for( int i = 1; i < len; ++i )
+                    {
+                        var value = values[i];
+
+                        if( value.UserData == null || !( value.UserData is Type ) )
+                            throw new ArgumentException( "Argument #{0} is not a CLR type".With( i - 1 ), "types" );
+
+                        types[i - 1] = value.UserData as Type;
+                    }
+
+                    var newPrototype = new MondValue( _state );
+                    var newType = type.MakeGenericType( types );
+                    var newBinding = Bind( newType, out newPrototype, _state, binding.IsLocked ? MondBindingOptions.AutoLock : MondBindingOptions.None );
+
+                    return newBinding;
+                } );
             }
 
             // Hook up user defined operators
@@ -289,6 +324,7 @@ namespace Mond.BindingEx
                 // Hook up the constructor
                 binding["new"] = BindingUtils.CreateConstructorShim( type, prototype );
 
+            binding.UserData = type;
             return binding;
         }
     }

@@ -65,7 +65,10 @@ namespace Mond.BindingEx
         {
             return delegate( MondState state, MondValue instance, MondValue[] args )
             {
-                if( name == "ToString" && args != null && args.Length >= 1 && args[0] == instance )
+                // Remove the object instance from the argument list.
+                // This is primarily to prevent argument mismatch exceptions
+                // when the Mond runtime tries to dispatch a metamethod.
+                if( args != null && args.Length >= 1 && args[0] == instance )
                     args = args.Skip( 1 ).ToArray();
 
                 var target = GetTarget<MethodInfo>( type, name, args, BindingFlags.Public | BindingFlags.Instance );

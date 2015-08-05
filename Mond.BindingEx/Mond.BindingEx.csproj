@@ -43,6 +43,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BindingException.cs" />
     <Compile Include="Comparers\OperatorAttributeComparer.cs" />
     <Compile Include="Comparers\PropertyNameComparer.cs" />
     <Compile Include="Comparers\NumericTypeComparer.cs" />
@@ -53,7 +54,6 @@
     <Compile Include="Utils\Extensions\EnumerableExtensions.cs" />
     <Compile Include="Comparers\MethodNameComparer.cs" />
     <Compile Include="MondBindingOptions.cs" />
-    <Compile Include="Utils\MondHelperMethods.cs" />
     <Compile Include="MondIgnoreAttribute.cs" />
     <Compile Include="MondObjectBinder.cs" />
     <Compile Include="MondOperatorAttribute.cs" />
