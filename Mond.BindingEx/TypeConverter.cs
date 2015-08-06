@@ -170,7 +170,16 @@ namespace Mond.BindingEx
                     return null;
 
                 case MondValueType.String:
-                    return value.ToString();
+                    var str = value.ToString();
+                    if( expectedType == typeof( char ) )
+                    {
+                        if( str.Length != 1 )
+                            throw new ArgumentException( "Value cannot be converted to char", "value" );
+
+                        return str[0];
+                    }
+
+                    return str;
 
                 case MondValueType.Number:
                     if( expectedType.IsEnum )

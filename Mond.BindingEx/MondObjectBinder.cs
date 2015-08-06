@@ -68,7 +68,7 @@ namespace Mond.BindingEx
 
         public static MondValue Bind( Delegate function, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
         {
-            return Bind( function, function.Method.Name, state, options );
+            return Bind( function, function.Method.GetName(), state, options );
         }
 
         public static MondValue Bind( MulticastDelegate function, string name, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
@@ -90,9 +90,6 @@ namespace Mond.BindingEx
 
                 if( String.IsNullOrWhiteSpace( name ) )
                     throw new ArgumentException( "Must provide a valid name when specifying MondBindingOptions.AutoInsert", "name" );
-
-                if( function.GetType().IsGenericType )
-                    name = name.Substring( 0, name.IndexOf( '`' ) );
 
                 state[name] = shim;
             }
@@ -133,11 +130,7 @@ namespace Mond.BindingEx
             }
 
             if( options.HasFlag( MondBindingOptions.AutoInsert ) )
-            {
-                // Generic types have names in the form of TypeName`n where n is the number of generic parameters
-                var name = type.IsGenericType ? type.Name.Substring( 0, type.Name.IndexOf( '`' ) ) : type.Name;
-                state[name] = binding;
-            }
+                state[type.GetName()] = binding;
 
             BindingCache.Add( type, binding );
             return binding;
@@ -146,19 +139,14 @@ namespace Mond.BindingEx
         private static MondValue BindEnum( Type type, MondState state )
         {
             var binding = new MondValue( state );
-            var pairs = Enum.GetNames( type ).Zip(
-                            Enum.GetValues( type )
-                                .AsEnumerable()
-                                .Select( v => Convert.ChangeType( v, typeof( double ) ) )
-                                .Cast<double>(),
-                            ( a, b ) => new { Name = a, Value = b }
-                        );
+            var pairs = type.GetFields( BindingFlags.Public | BindingFlags.Static )
+                            .Select( m => new { Name = m.GetName(), Value = m.GetRawConstantValue() } );
 
             foreach( var pair in pairs )
-                binding[pair.Name] = pair.Value;
+                binding[pair.Name] = (double)Convert.ChangeType( pair.Value, typeof( double ) );
 
-            binding["hasFlag"] = Bind( new Func<int, int, bool>( ( enumValue, flagValue ) => ( enumValue & flagValue ) == flagValue ), state );
-
+            binding["hasFlag"] = BindingUtils.CreateStaticMethodShim( new Func<int, int, bool>( ( x, y ) => ( x & y ) == y ) );
+            binding.UserData = type;
             return binding;
         }
 
@@ -197,11 +185,11 @@ namespace Mond.BindingEx
                     if( /* method.Name == "ToString" || method.Name == "GetHashCode" || */ method.Name == "Equals" || method.Name == "GetType" )
                         continue;
 
-                    var shim = BindingUtils.CreateInstanceMethodShim( type, method.Name );
-                    prototype[method.Name] = shim;
+                    var shim = BindingUtils.CreateInstanceMethodShim( type, method.GetName() );
+                    prototype[method.GetName()] = shim;
                 }
 
-                if( !methods.Any( m => m.Name == "__string" ) )
+                if( !methods.Any( m => m.GetName() == "__string" ) )
                 {
                     var shim = BindingUtils.CreateInstanceMethodShim( type, "ToString" );
                     prototype["__string"] = shim;
@@ -217,11 +205,11 @@ namespace Mond.BindingEx
 
             foreach( var method in methods )
             {
-                if( type.ContainsGenericParameters && method.Name == "__call" )
+                if( type.ContainsGenericParameters && method.GetName() == "__call" )
                     throw new BindingException( "Cannot define static __call metamethod on un-initialized generic types", type, method );
 
-                var shim = BindingUtils.CreateStaticMethodShim( type, method.Name );
-                binding[method.Name] = shim;
+                var shim = BindingUtils.CreateStaticMethodShim( type, method.GetName() );
+                binding[method.GetName()] = shim;
             }
 
             if( type.ContainsGenericParameters )
@@ -261,7 +249,7 @@ namespace Mond.BindingEx
             foreach( var method in methods )
             {
                 var attr = method.GetCustomAttribute<MondOperatorAttribute>();
-                var shim = BindingUtils.CreateStaticMethodShim( type, method.Name );
+                var shim = BindingUtils.CreateStaticMethodShim( type, method.GetName() );
                 state["__ops"][attr.Operator] = shim;
             }
 
@@ -280,15 +268,15 @@ namespace Mond.BindingEx
 
                     if( ( method = prop.GetGetMethod() ) != null )
                     {
-                        shim = BindingUtils.CreateInstanceMethodShim( type, method.Name );
-                        name = "get{0}".With( prop.Name );
+                        shim = BindingUtils.CreateInstanceMethodShim( type, method.GetName() );
+                        name = "get{0}".With( prop.GetName() );
                         prototype[name] = shim;
                     }
 
                     if( ( method = prop.GetSetMethod() ) != null )
                     {
-                        shim = BindingUtils.CreateInstanceMethodShim( type, method.Name );
-                        name = "set{0}".With( prop.Name );
+                        shim = BindingUtils.CreateInstanceMethodShim( type, method.GetName() );
+                        name = "set{0}".With( prop.GetName() );
                         prototype[name] = shim;
                     }
                 }
@@ -307,15 +295,15 @@ namespace Mond.BindingEx
 
                 if( ( method = prop.GetGetMethod() ) != null )
                 {
-                    shim = BindingUtils.CreateStaticMethodShim( type, method.Name );
-                    name = "get{0}".With( prop.Name );
+                    shim = BindingUtils.CreateStaticMethodShim( type, method.GetName() );
+                    name = "get{0}".With( prop.GetName() );
                     binding[name] = shim;
                 }
 
                 if( ( method = prop.GetSetMethod() ) != null )
                 {
-                    shim = BindingUtils.CreateStaticMethodShim( type, method.Name );
-                    name = "set{0}".With( prop.Name );
+                    shim = BindingUtils.CreateStaticMethodShim( type, method.GetName() );
+                    name = "set{0}".With( prop.GetName() );
                     binding[name] = shim;
                 }
             }

@@ -95,11 +95,11 @@ namespace Mond.BindingEx
                     var memberName = null as string;
 
                     if( member is ConstructorInfo )
-                        memberName = ( member as ConstructorInfo ).Name;
+                        memberName = ( member as ConstructorInfo ).GetName();
                     else if( member is MethodInfo )
-                        memberName = ( member as MethodInfo ).Name;
+                        memberName = ( member as MethodInfo ).GetName();
                     else if( member is Delegate )
-                        memberName = ( member as Delegate ).Method.Name;
+                        memberName = ( member as Delegate ).Method.GetName();
 
                     if( memberName != name )
                         return new ReflectedMember<T> { Matched = false };
@@ -145,10 +145,10 @@ namespace Mond.BindingEx
             var matched = members.Select( m => matcher( (T)m ) ).Where( m => m.Matched ).Distinct( new NumericTypeComparer<T>() );
 
             if( matched.Count() > 1 )
-                throw new AmbiguousMatchException( "More than one {0} in {1} matches the argument list".With( typeof( T ) == typeof( ConstructorInfo ) ? "constructor" : "method", type.Name ) );
+                throw new AmbiguousMatchException( "More than one {0} in {1} matches the argument list".With( typeof( T ) == typeof( ConstructorInfo ) ? "constructor" : "method", type.GetName() ) );
 
             if( matched.Count() == 0 )
-                throw new MissingMethodException( "No {0} in {1} matches the argument list".With( typeof( T ) == typeof( ConstructorInfo ) ? "constructor" : "method", type.Name ) );
+                throw new MissingMethodException( "No {0} in {1} matches the argument list".With( typeof( T ) == typeof( ConstructorInfo ) ? "constructor" : "method", type.GetName() ) );
 
             return matched.First();
         }

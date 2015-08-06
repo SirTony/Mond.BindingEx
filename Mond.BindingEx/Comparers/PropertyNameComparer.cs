@@ -7,7 +7,7 @@ namespace Mond.BindingEx
     {
         public bool Equals( PropertyInfo x, PropertyInfo y )
         {
-            return x.Name == y.Name;
+            return x.GetName() == y.GetName();
         }
 
         public int GetHashCode( PropertyInfo obj )

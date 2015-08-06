@@ -43,6 +43,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Utils\Extensions\MemberInfoExtensions.cs" />
+    <Compile Include="MondAliasAttribute.cs" />
     <Compile Include="BindingException.cs" />
     <Compile Include="Comparers\OperatorAttributeComparer.cs" />
     <Compile Include="Comparers\PropertyNameComparer.cs" />
