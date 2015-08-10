@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using Mond.Binding;
+using Mond.BindingEx.Library;
 
 namespace Mond.BindingEx
 {
@@ -212,31 +214,6 @@ namespace Mond.BindingEx
                 binding[method.GetName()] = shim;
             }
 
-            if( type.ContainsGenericParameters )
-            {
-                binding["__call"] = new MondFunction( delegate ( MondState _state, MondValue[] values )
-                {
-                    var types = new Type[values.Length - 1];
-                    var len = values.Length;
-
-                    for( int i = 1; i < len; ++i )
-                    {
-                        var value = values[i];
-
-                        if( value.UserData == null || !( value.UserData is Type ) )
-                            throw new ArgumentException( "Argument #{0} is not a CLR type".With( i - 1 ), "types" );
-
-                        types[i - 1] = value.UserData as Type;
-                    }
-
-                    var newPrototype = new MondValue( _state );
-                    var newType = type.MakeGenericType( types );
-                    var newBinding = Bind( newType, out newPrototype, _state, binding.IsLocked ? MondBindingOptions.AutoLock : MondBindingOptions.None );
-
-                    return newBinding;
-                } );
-            }
-
             // Hook up user defined operators
             methods = type.GetMethods( BindingFlags.Public | BindingFlags.Static )
                           .Where( IsOperator )
@@ -312,7 +289,11 @@ namespace Mond.BindingEx
                 // Hook up the constructor
                 binding["new"] = BindingUtils.CreateConstructorShim( type, prototype );
 
-            binding.UserData = type;
+            MondValue typePrototype;
+            MondClassBinder.Bind<TypeReference>( out typePrototype, state );
+            binding.Prototype = typePrototype;
+            binding.UserData = new TypeReference(type);
+
             return binding;
         }
     }
