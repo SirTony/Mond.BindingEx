@@ -10,7 +10,7 @@ namespace Mond.BindingEx.Library
 
         public NamespaceReference( string path )
         {
-            if( string.IsNullOrWhiteSpace(path) )
+            if( string.IsNullOrWhiteSpace( path ) )
                 throw new ArgumentNullException( "path" );
 
             _path = path;
@@ -24,7 +24,7 @@ namespace Mond.BindingEx.Library
         {
             var newPath = _path + "." + name;
 
-            var type = InteropLibrary.LookupType( newPath );   
+            var type = InteropLibrary.LookupType( newPath );
             if( type != null )
                 return MondObjectBinder.Bind( type, state, MondBindingOptions.AutoLock );
 

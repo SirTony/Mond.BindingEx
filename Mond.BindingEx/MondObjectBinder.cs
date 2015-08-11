@@ -214,6 +214,19 @@ namespace Mond.BindingEx
                 binding[method.GetName()] = shim;
             }
 
+            if( type.ContainsGenericParameters )
+            {
+                binding["__call"] = new MondFunction( delegate ( MondState _state, MondValue[] values ) {
+                    var types = InteropLibrary.GetTypeArray( values.Skip( 1 ).ToArray() );
+
+                    var newPrototype = new MondValue( _state );
+                    var newType = type.MakeGenericType( types );
+                    var newBinding = Bind( newType, out newPrototype, _state, binding.IsLocked ? MondBindingOptions.AutoLock : MondBindingOptions.None );
+
+                    return newBinding;
+                } );
+            }
+
             // Hook up user defined operators
             methods = type.GetMethods( BindingFlags.Public | BindingFlags.Static )
                           .Where( IsOperator )
@@ -289,11 +302,7 @@ namespace Mond.BindingEx
                 // Hook up the constructor
                 binding["new"] = BindingUtils.CreateConstructorShim( type, prototype );
 
-            MondValue typePrototype;
-            MondClassBinder.Bind<TypeReference>( out typePrototype, state );
-            binding.Prototype = typePrototype;
-            binding.UserData = new TypeReference(type);
-
+            binding.UserData = new TypeReference( type );
             return binding;
         }
     }

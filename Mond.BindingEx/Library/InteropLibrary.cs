@@ -17,7 +17,7 @@ namespace Mond.BindingEx.Library
     {
         public IEnumerable<KeyValuePair<string, MondValue>> GetDefinitions()
         {
-            var importNamespace = new MondValue( (state, instance, args) => new NamespaceReference( args[0] ).ToMond( state ) );
+            var importNamespace = new MondValue( ( state, instance, args ) => new NamespaceReference( args[0] ).ToMond( state ) );
             yield return new KeyValuePair<string, MondValue>( "importNamespace", importNamespace );
         }
 
@@ -39,10 +39,13 @@ namespace Mond.BindingEx.Library
             {
                 var value = values[i];
                 
-                if( value.Type != MondValueType.Object || !(value.UserData is TypeReference) )
-                    throw new ArgumentException( "Argument #{0} is not a CLR type".With( i - 1 ), "values" );
+                if( value.Type != MondValueType.Object && !( value.UserData is TypeReference ) && !( value.UserData is Type ) )
+                    throw new ArgumentException( "Argument #{0} is not a CLR type".With( i ), "values" );
 
-                types[i] = ((TypeReference)value.UserData).Type;
+                if( value.UserData is TypeReference )
+                    types[i] = ( value.UserData as TypeReference ).Type;
+                else
+                    types[i] = value.UserData as Type;
             }
 
             return types;

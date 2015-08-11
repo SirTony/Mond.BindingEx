@@ -11,9 +11,9 @@ namespace Mond.BindingEx.Library
         public TypeReference( Type type )
         {
             if( type == null )
-                throw new ArgumentNullException("type");
+                throw new ArgumentNullException( "type" );
 
-            Type = type;
+            this.Type = type;
         }
 
         /// <summary>
@@ -22,7 +22,7 @@ namespace Mond.BindingEx.Library
         [MondFunction( "__get" )]
         public MondValue Get( MondState state, MondValue instance, string name )
         {
-            var typeName = Type.FullName + "+" + name;
+            var typeName = this.Type.FullName + "+" + name;
 
             var type = InteropLibrary.LookupType( typeName );
             if( type == null )
@@ -30,7 +30,7 @@ namespace Mond.BindingEx.Library
 
             return MondObjectBinder.Bind( type, state, MondBindingOptions.AutoLock );
         }
-        
+
         /// <summary>
         /// Bind type arguments to a generic type. Only used when the type has an overload
         /// with no type arguments.
@@ -38,12 +38,12 @@ namespace Mond.BindingEx.Library
         [MondFunction( "__call" )]
         public MondValue Call( MondState state, MondValue instance, params MondValue[] args )
         {
-            if( Type.IsGenericType && !Type.ContainsGenericParameters )
-                throw new Exception( "Generic type is already bound: " + Type.FullName );
+            if( this.Type.IsGenericType && !this.Type.ContainsGenericParameters )
+                throw new Exception( "Generic type is already bound: " + this.Type.FullName );
 
             var types = InteropLibrary.GetTypeArray( args );
 
-            var typeName = Type.FullName + "`" + types.Length;
+            var typeName = this.Type.FullName + "`" + types.Length;
             var type = InteropLibrary.LookupType( typeName );
             if( type == null )
                 throw new Exception( "Could not find type: " + typeName );
@@ -55,7 +55,12 @@ namespace Mond.BindingEx.Library
         [MondFunction( "__string" )]
         public string String( MondValue instance )
         {
-            return Type.FullName;
+            return this.ToString();
+        }
+
+        public override string ToString()
+        {
+            return this.Type.FullName;
         }
     }
 }
