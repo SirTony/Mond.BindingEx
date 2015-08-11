@@ -202,6 +202,7 @@ namespace Mond.BindingEx
             methods = type.GetMethods( BindingFlags.Public | BindingFlags.Static )
                           .Reject( IsOperator )
                           .Reject( IsProperty )
+                          .Reject( m => m.IsSpecialName && m.Name.StartsWith( "op_" ) )
                           .Reject( m => ShouldIgnore( m ) )
                           .Distinct( methodComparer );
 
