@@ -43,6 +43,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Library\InteropLibrary.cs" />
+    <Compile Include="Library\NamespaceReference.cs" />
+    <Compile Include="Library\TypeReference.cs" />
     <Compile Include="Utils\Extensions\MemberInfoExtensions.cs" />
     <Compile Include="MondAliasAttribute.cs" />
     <Compile Include="BindingException.cs" />
