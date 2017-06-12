@@ -2,21 +2,22 @@
 
 namespace Mond.BindingEx
 {
-    [AttributeUsage( AttributeTargets.Method, AllowMultiple = false )]
+    [AttributeUsage( AttributeTargets.Method )]
     public sealed class MondOperatorAttribute : Attribute
     {
-        private readonly string @operator;
-        public string Operator { get { return this.@operator; } }
+        public string Operator { get; }
 
         public MondOperatorAttribute( string @operator )
         {
             if( !Utils.IsOperatorToken( @operator ) )
-                throw new ArgumentException( "'{0}' is not a valid operator".With( @operator ), "operator" );
+                throw new ArgumentException( "'{0}' is not a valid operator".With( @operator ), nameof( @operator ) );
 
             if( Utils.OperatorExists( @operator ) )
-                throw new ArgumentException( "Cannot override built-in operator '{0}'".With( @operator ), "operator" );
+                throw new ArgumentException(
+                    "Cannot override built-in operator '{0}'".With( @operator ),
+                    nameof( @operator ) );
 
-            this.@operator = @operator;
+            this.Operator = @operator;
         }
     }
 }

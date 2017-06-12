@@ -13,9 +13,7 @@ namespace Mond.BindingEx
             return xOperator.Operator == yOperator.Operator;
         }
 
-        public int GetHashCode( MethodInfo obj )
-        {
-            return obj.GetCustomAttribute<MondOperatorAttribute>().Operator.GetHashCode();
-        }
+        public int GetHashCode( MethodInfo obj ) => obj.GetCustomAttribute<MondOperatorAttribute>()
+                                                       .Operator.GetHashCode();
     }
 }

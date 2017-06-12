@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 
@@ -7,134 +9,252 @@ namespace Mond.BindingEx
     internal static class BindingUtils
     {
         public static MondFunction CreateConstructorShim( Type type, MondValue prototype )
-        {
-            return delegate( MondState state, MondValue[] args )
-            {
-                var target = GetTarget<ConstructorInfo>( type, null, args, BindingFlags.Public | BindingFlags.Instance );
-                var values = TypeConverter.MarshalToClr( args, target.Types, state );
-                var result = new MondValue( state );
-                result.UserData = target.Method.Invoke( values );
-                result.Prototype = prototype;
-
-                return result;
-            };
-        }
+            => delegate( MondState state, MondValue[] args )
+               {
+                   var target = BindingUtils.GetTarget<ConstructorInfo>(
+                       type,
+                       null,
+                       args,
+                       BindingFlags.Public | BindingFlags.Instance );
+                   var values = TypeConverter.MarshalToClr( args, target.Types, state );
+                   return new MondValue( state )
+                   {
+                       UserData = target.Method.Invoke( values ),
+                       Prototype = prototype
+                   };
+               };
 
         public static MondFunction CreateStaticMethodShim( Type type, string name )
-        {
-            return delegate( MondState state, MondValue[] args )
-            {
-                var target = GetTarget<MethodInfo>( type, name, args, BindingFlags.Public | BindingFlags.Static );
-                var values = TypeConverter.MarshalToClr( args, target.Types, state );
-                var result = target.Method.Invoke( null, values );
+            => delegate( MondState state, MondValue[] args )
+               {
+                   var target = BindingUtils.GetTarget<MethodInfo>(
+                       type,
+                       name,
+                       args,
+                       BindingFlags.Public | BindingFlags.Static );
+                   var values = TypeConverter.MarshalToClr( args, target.Types, state );
+                   var result = target.Method.Invoke( null, values );
 
-                if( target.Method.ReturnType == typeof( void ) )
-                    return MondValue.Undefined;
+                   if( target.Method.ReturnType == typeof( void ) )
+                       return MondValue.Undefined;
 
-                var mondType = TypeConverter.ToMondType( result.GetType() );
-                return TypeConverter.MarshalToMond( result, mondType );
-            };
-        }
+                   if( result == null ) return MondValue.Null;
+
+                   var mondType = TypeConverter.ToMondType( result.GetType() );
+                   return TypeConverter.MarshalToMond( result, mondType );
+               };
 
         public static MondFunction CreateStaticMethodShim( Delegate function )
-        {
-            return delegate( MondState state, MondValue[] args )
-            {
-                var matcher = CreateTargetMatcher<Delegate>( args, null );
-                var matched = function.GetInvocationList().Select( m => matcher( m ) ).Where( m => m.Matched );
+            => delegate( MondState state, MondValue[] args )
+               {
+                   var matcher = BindingUtils.CreateTargetMatcher<Delegate>( args, null );
+                   var matched = function.GetInvocationList().Select( matcher ).Where( m => m.Matched );
 
-                if( matched.Count() > 1 )
-                    throw new AmbiguousMatchException( "More than one delegate in the invokation list matches the argument list" );
+                   var reflectedMembers = matched as ReflectedMember<Delegate>[] ?? matched.ToArray();
+                   if( reflectedMembers.Length > 1 )
+                   {
+                       throw new AmbiguousMatchException(
+                           "More than one delegate in the invokation list matches the argument list" );
+                   }
 
-                if( matched.Count() == 0 )
-                    throw new MissingMethodException( "No delegate in the invokation list matches the argument list" );
+                   if( reflectedMembers.Length == 0 )
+                   {
+                       throw new MissingMethodException(
+                           "No delegate in the invokation list matches the argument list" );
+                   }
 
-                var target = matched.First();
-                var values = TypeConverter.MarshalToClr( args, target.Types, state );
-                var result = function.DynamicInvoke( values );
+                   var target = reflectedMembers[0];
+                   var values = TypeConverter.MarshalToClr( args, target.Types, state );
+                   var result = target.Method.DynamicInvoke( values );
 
-                if( target.Method.Method.ReturnType == typeof( void ) )
-                    return MondValue.Undefined;
+                   if( target.Method.Method.ReturnType == typeof( void ) )
+                       return MondValue.Undefined;
 
-                var mondType = TypeConverter.ToMondType( result.GetType() );
-                return TypeConverter.MarshalToMond( result, mondType );
-            };
-        }
+                   if( result == null ) return MondValue.Null;
+
+                   var mondType = TypeConverter.ToMondType( result.GetType() );
+                   return TypeConverter.MarshalToMond( result, mondType );
+               };
+
+        public static MondFunction CreateStaticOverloadGroupShim( IEnumerable<MethodInfo> methods )
+            => delegate( MondState state, MondValue[] args )
+               {
+                   var matcher = BindingUtils.CreateTargetMatcher<MethodInfo>( args, null );
+                   var matched = methods.Select( matcher ).Where( m => m.Matched );
+
+                   var reflectedMembers = matched as ReflectedMember<MethodInfo>[] ?? matched.ToArray();
+                   if( reflectedMembers.Length > 1 )
+                   {
+                       throw new AmbiguousMatchException(
+                           "More than one delegate in the invokation list matches the argument list" );
+                   }
+
+                   if( reflectedMembers.Length == 0 )
+                   {
+                       throw new MissingMethodException(
+                           "No delegate in the invokation list matches the argument list" );
+                   }
+
+                   var target = reflectedMembers[0];
+                   var values = TypeConverter.MarshalToClr( args, target.Types, state );
+                   var result = target.Method.Invoke( null, values );
+
+                   if( target.Method.ReturnType == typeof( void ) )
+                       return MondValue.Undefined;
+
+                   if( result == null ) return MondValue.Null;
+
+                   var mondType = TypeConverter.ToMondType( result.GetType() );
+                   return TypeConverter.MarshalToMond( result, mondType );
+               };
 
         public static MondInstanceFunction CreateInstanceMethodShim( Type type, string name )
-        {
-            return delegate( MondState state, MondValue instance, MondValue[] args )
-            {
-                // Remove the object instance from the argument list.
-                // This is primarily to prevent argument mismatch exceptions
-                // when the Mond runtime tries to dispatch a metamethod.
-                if( args != null && args.Length >= 1 && args[0] == instance )
-                    args = args.Skip( 1 ).ToArray();
+            => delegate( MondState state, MondValue instance, MondValue[] args )
+               {
+                   // Remove the object instance from the argument list.
+                   // This is primarily to prevent argument mismatch exceptions
+                   // when the Mond runtime tries to dispatch a metamethod.
+                   if( ( args != null ) && ( args.Length >= 1 ) && ( args[0] == instance ) )
+                       args = args.Skip( 1 ).ToArray();
 
-                var target = GetTarget<MethodInfo>( type, name, args, BindingFlags.Public | BindingFlags.Instance );
-                var values = TypeConverter.MarshalToClr( args, target.Types, state );
-                var result = target.Method.Invoke( instance.UserData, values );
+                   var target = BindingUtils.GetTarget<MethodInfo>(
+                       type,
+                       name,
+                       args,
+                       BindingFlags.Public | BindingFlags.Instance );
+                   var values = TypeConverter.MarshalToClr( args, target.Types, state );
+                   var result = target.Method.Invoke( instance.UserData, values );
 
-                if( target.Method.ReturnType == typeof( void ) )
-                    return MondValue.Undefined;
+                   if( target.Method.ReturnType == typeof( void ) )
+                       return MondValue.Undefined;
 
-                var mondType = TypeConverter.ToMondType( result.GetType() );
-                return TypeConverter.MarshalToMond( result, mondType );
-            };
-        }
+                   if( result == null ) return MondValue.Null;
+
+                   var mondType = TypeConverter.ToMondType( result.GetType() );
+                   return TypeConverter.MarshalToMond( result, mondType );
+               };
+
+        public static MondInstanceFunction CreateInstanceOverloadGroupShim( IEnumerable<MethodInfo> methods )
+            => delegate( MondState state, MondValue instance, MondValue[] args )
+               {
+                   // Remove the object instance from the argument list.
+                   // This is primarily to prevent argument mismatch exceptions
+                   // when the Mond runtime tries to dispatch a metamethod.
+                   if( ( args != null ) && ( args.Length >= 1 ) && ( args[0] == instance ) )
+                       args = args.Skip( 1 ).ToArray();
+
+                   var matcher = BindingUtils.CreateTargetMatcher<MethodInfo>( args, null );
+                   var matched = methods.Select( matcher ).Where( m => m.Matched );
+
+                   var reflectedMembers = matched as ReflectedMember<MethodInfo>[] ?? matched.ToArray();
+                   if( reflectedMembers.Length > 1 )
+                   {
+                       throw new AmbiguousMatchException(
+                           "More than one delegate in the invokation list matches the argument list" );
+                   }
+
+                   if( reflectedMembers.Length == 0 )
+                   {
+                       throw new MissingMethodException(
+                           "No delegate in the invokation list matches the argument list" );
+                   }
+
+                   var target = reflectedMembers[0];
+                   var values = TypeConverter.MarshalToClr( args, target.Types, state );
+                   var result = target.Method.Invoke( instance.UserData, values );
+
+                   if( target.Method.ReturnType == typeof( void ) )
+                       return MondValue.Undefined;
+
+                   if( result == null ) return MondValue.Null;
+
+                   var mondType = TypeConverter.ToMondType( result.GetType() );
+                   return TypeConverter.MarshalToMond( result, mondType );
+               };
 
         private static Func<T, ReflectedMember<T>> CreateTargetMatcher<T>( MondValue[] args, string name )
         {
-            if( typeof( T ) != typeof( ConstructorInfo ) && typeof( T ) != typeof( MethodInfo ) && typeof( T ) != typeof( Delegate ) )
-                throw new ArgumentException( "Generic argument must be either ConstructorInfo, MethodInfo, or Delegate", "T" );
+            if( ( typeof( T ) != typeof( ConstructorInfo ) ) &&
+                ( typeof( T ) != typeof( MethodInfo ) ) &&
+                ( typeof( T ) != typeof( Delegate ) ) )
+            {
+                throw new ArgumentException(
+                    "Generic argument must be either ConstructorInfo, MethodInfo, or Delegate" );
+            }
 
             return delegate( T member )
-            {
-                if( name != null )
-                {
-                    var memberName = null as string;
+                   {
+                       if( name != null )
+                       {
+                           var memberName = null as string;
 
-                    if( member is ConstructorInfo )
-                        memberName = ( member as ConstructorInfo ).GetName();
-                    else if( member is MethodInfo )
-                        memberName = ( member as MethodInfo ).GetName();
-                    else if( member is Delegate )
-                        memberName = ( member as Delegate ).Method.GetName();
+                           if( member is ConstructorInfo )
+                               memberName = ( member as ConstructorInfo ).GetName();
+                           else if( member is MethodInfo )
+                               memberName = ( member as MethodInfo ).GetName();
+                           else if( member is Delegate )
+                               memberName = ( member as Delegate ).Method.GetName();
 
-                    if( memberName != name )
-                        return new ReflectedMember<T> { Matched = false };
-                }
+                           if( memberName != name )
+                               return new ReflectedMember<T> { Matched = false };
+                       }
 
-                var all = null as ParameterInfo[];
+                       var all = null as ParameterInfo[];
 
-                if( member is ConstructorInfo )
-                    all = ( member as ConstructorInfo ).GetParameters();
-                else if( member is MethodInfo )
-                    all = ( member as MethodInfo ).GetParameters();
-                else if( member is Delegate )
-                    all = ( member as Delegate ).Method.GetParameters();
+                       if( member is ConstructorInfo )
+                           all = ( member as ConstructorInfo ).GetParameters();
+                       else if( member is MethodInfo )
+                           all = ( member as MethodInfo ).GetParameters();
+                       else if( member is Delegate )
+                           all = ( member as Delegate ).Method.GetParameters();
 
-                var required = all.Reject( p => p.IsOptional ).ToArray();
+                       var required = all.Reject( p => p.IsOptional ).ToArray();
 
-                if( args.Length == 0 )
-                    return new ReflectedMember<T> { Matched = required.Length == 0, Method = member, Types = Type.EmptyTypes };
+                       if( args.Length == 0 )
+                       {
+                           return new ReflectedMember<T>
+                           {
+                               Matched = required.Length == 0,
+                               Method = member,
+                               Types = Type.EmptyTypes
+                           };
+                       }
 
-                if( required.Length == args.Length && TypeConverter.MatchTypes( args, required.Select( p => p.ParameterType ).ToArray() ) )
-                    return new ReflectedMember<T> { Matched = true, Method = member, Types = required.Select( p => p.ParameterType ).ToArray() };
+                       if( ( required.Length == args.Length ) &&
+                           TypeConverter.MatchTypes( args, required.Select( p => p.ParameterType ).ToArray() ) )
+                       {
+                           return new ReflectedMember<T>
+                           {
+                               Matched = true,
+                               Method = member,
+                               Types = required.Select( p => p.ParameterType ).ToArray()
+                           };
+                       }
 
-                if( all.Length == args.Length && TypeConverter.MatchTypes( args, all.Select( p => p.ParameterType ).ToArray() ) )
-                    return new ReflectedMember<T> { Matched = true, Method = member, Types = all.Select( p => p.ParameterType ).ToArray() };
+                       // ReSharper disable once PossibleNullReferenceException
+                       if( ( all.Length == args.Length ) &&
+                           TypeConverter.MatchTypes( args, all.Select( p => p.ParameterType ).ToArray() ) )
+                       {
+                           return new ReflectedMember<T>
+                           {
+                               Matched = true,
+                               Method = member,
+                               Types = all.Select( p => p.ParameterType ).ToArray()
+                           };
+                       }
 
-                return new ReflectedMember<T> { Matched = false };
-            };
+                       return new ReflectedMember<T> { Matched = false };
+                   };
         }
 
-        private static ReflectedMember<T> GetTarget<T>( Type type, string name, MondValue[] args, BindingFlags flags ) where T : MemberInfo
+        [SuppressMessage( "ReSharper", "CoVariantArrayConversion" )]
+        private static ReflectedMember<T> GetTarget<T>( Type type, string name, MondValue[] args, BindingFlags flags )
+            where T : MemberInfo
         {
-            if( typeof( T ) != typeof( ConstructorInfo ) && typeof( T ) != typeof( MethodInfo ) )
+            if( ( typeof( T ) != typeof( ConstructorInfo ) ) && ( typeof( T ) != typeof( MethodInfo ) ) )
                 throw new ArgumentException( "Generic argument must be either ConstructorInfo or MethodInfo", "T" );
 
-            var matcher = CreateTargetMatcher<T>( args, name );
+            var matcher = BindingUtils.CreateTargetMatcher<T>( args, name );
             var members = null as MemberInfo[];
 
             if( typeof( T ) == typeof( ConstructorInfo ) )
@@ -142,15 +262,29 @@ namespace Mond.BindingEx
             else if( typeof( T ) == typeof( MethodInfo ) )
                 members = type.GetMethods( flags );
 
-            var matched = members.Select( m => matcher( (T)m ) ).Where( m => m.Matched ).Distinct( new NumericTypeComparer<T>() );
+            // ReSharper disable once AssignNullToNotNullAttribute
+            var matched = members.Select( m => matcher( (T)m ) )
+                                 .Where( m => m.Matched )
+                                 .Distinct( new NumericTypeComparer<T>() );
 
-            if( matched.Count() > 1 )
-                throw new AmbiguousMatchException( "More than one {0} in {1} matches the argument list".With( typeof( T ) == typeof( ConstructorInfo ) ? "constructor" : "method", type.GetName() ) );
+            var reflectedMembers = matched as ReflectedMember<T>[] ?? matched.ToArray();
+            if( reflectedMembers.Length > 1 )
+            {
+                throw new AmbiguousMatchException(
+                    "More than one {0} in {1} matches the argument list".With(
+                        typeof( T ) == typeof( ConstructorInfo ) ? "constructor" : "method",
+                        type.GetName() ) );
+            }
 
-            if( matched.Count() == 0 )
-                throw new MissingMethodException( "No {0} in {1} matches the argument list".With( typeof( T ) == typeof( ConstructorInfo ) ? "constructor" : "method", type.GetName() ) );
+            if( reflectedMembers.Length == 0 )
+            {
+                throw new MissingMethodException(
+                    "No {0} in {1} matches the argument list".With(
+                        typeof( T ) == typeof( ConstructorInfo ) ? "constructor" : "method",
+                        type.GetName() ) );
+            }
 
-            return matched.First();
+            return reflectedMembers.First();
         }
     }
 }

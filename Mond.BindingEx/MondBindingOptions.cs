@@ -7,6 +7,6 @@ namespace Mond.BindingEx
     {
         None = 0,
         AutoInsert = 1,
-        AutoLock = 2,
+        AutoLock = 2
     }
 }

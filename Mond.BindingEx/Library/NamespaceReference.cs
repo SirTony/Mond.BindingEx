@@ -11,36 +11,35 @@ namespace Mond.BindingEx.Library
         public NamespaceReference( string path )
         {
             if( string.IsNullOrWhiteSpace( path ) )
-                throw new ArgumentNullException( "path" );
+                throw new ArgumentNullException( nameof( path ) );
 
-            _path = path;
+            this._path = path;
         }
 
         /// <summary>
-        /// Navigate namespaces or get a top-level type.
+        ///     Navigate namespaces or get a top-level type.
         /// </summary>
         [MondFunction( "__get" )]
         public MondValue Get( MondState state, MondValue instance, string name )
         {
-            var newPath = _path + "." + name;
+            var newPath = this._path + "." + name;
 
             var type = InteropLibrary.LookupType( newPath );
-            if( type != null )
-                return MondObjectBinder.Bind( type, state, MondBindingOptions.AutoLock );
-
-            return new NamespaceReference( newPath ).ToMond( state );
+            return type != null
+                ? MondObjectBinder.Bind( type, state, MondBindingOptions.AutoLock )
+                : new NamespaceReference( newPath ).ToMond( state );
         }
 
         /// <summary>
-        /// Binds type arguments to a generic type. Only used when the type does not have
-        /// an overload with no type arguments.
+        ///     Binds type arguments to a generic type. Only used when the type does not have
+        ///     an overload with no type arguments.
         /// </summary>
         [MondFunction( "__call" )]
         public MondValue Call( MondState state, MondValue instance, params MondValue[] args )
         {
             var types = InteropLibrary.GetTypeArray( args );
 
-            var typeName = _path + "`" + types.Length;
+            var typeName = this._path + "`" + types.Length;
             var type = InteropLibrary.LookupType( typeName );
             if( type == null )
                 throw new Exception( "Could not find type: " + typeName );
@@ -50,19 +49,17 @@ namespace Mond.BindingEx.Library
         }
 
         [MondFunction( "__string" )]
-        public string String( MondValue instance )
-        {
-            return _path;
-        }
+        public string String( MondValue instance ) => this._path;
 
         public MondValue ToMond( MondState state )
         {
-            MondValue prototype;
-            MondClassBinder.Bind<NamespaceReference>( out prototype, state );
+            MondClassBinder.Bind<NamespaceReference>( state, out var prototype );
 
-            var obj = new MondValue( state );
-            obj.UserData = this;
-            obj.Prototype = prototype;
+            var obj = new MondValue( state )
+            {
+                UserData = this,
+                Prototype = prototype
+            };
             obj.Lock();
 
             return obj;

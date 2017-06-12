@@ -7,20 +7,11 @@ namespace Mond.BindingEx.Library
 {
     public class InteropLibraries : IMondLibraryCollection
     {
-        public IEnumerable<IMondLibrary> Create( MondState state )
-        {
-            yield return new InteropLibrary();
-        }
+        public IEnumerable<IMondLibrary> Create( MondState state ) { yield return new InteropLibrary(); }
     }
 
     public class InteropLibrary : IMondLibrary
     {
-        public IEnumerable<KeyValuePair<string, MondValue>> GetDefinitions()
-        {
-            var importNamespace = new MondValue( ( state, instance, args ) => new NamespaceReference( args[0] ).ToMond( state ) );
-            yield return new KeyValuePair<string, MondValue>( "importNamespace", importNamespace );
-        }
-
         internal static Type LookupType( string typeName )
         {
             var type = Type.GetType( typeName );
@@ -38,17 +29,25 @@ namespace Mond.BindingEx.Library
             for( var i = 0; i < values.Length; ++i )
             {
                 var value = values[i];
-                
-                if( value.Type != MondValueType.Object || ( !( value.UserData is TypeReference ) && !( value.UserData is Type ) ) )
-                    throw new ArgumentException( "Argument #{0} is not a CLR type".With( i ), "values" );
 
-                if( value.UserData is TypeReference )
-                    types[i] = ( value.UserData as TypeReference ).Type;
+                if( ( value.Type != MondValueType.Object ) ||
+                    ( !( value.UserData is TypeReference ) && !( value.UserData is Type ) ) )
+                    throw new ArgumentException( "Argument #{0} is not a CLR type".With( i ), nameof( values ) );
+
+                if( value.UserData is TypeReference typeRef )
+                    types[i] = typeRef.Type;
                 else
-                    types[i] = value.UserData as Type;
+                    types[i] = (Type)value.UserData;
             }
 
             return types;
+        }
+
+        public IEnumerable<KeyValuePair<string, MondValue>> GetDefinitions()
+        {
+            var importNamespace = new MondValue(
+                ( state, instance, args ) => new NamespaceReference( args[0] ).ToMond( state ) );
+            yield return new KeyValuePair<string, MondValue>( "importNamespace", importNamespace );
         }
     }
 }

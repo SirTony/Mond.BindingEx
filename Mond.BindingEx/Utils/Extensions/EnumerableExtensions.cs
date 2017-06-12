@@ -6,9 +6,15 @@ namespace Mond.BindingEx
 {
     internal static class EnumerableExtensions
     {
-        public static IEnumerable<T> Reject<T>( this IEnumerable<T> enumerable, Func<T, bool> predicate )
+        public static IEnumerable<T> Reject<T>(
+            this IEnumerable<T> enumerable,
+            Predicate<T> predicate ) => enumerable.Where( x => !predicate( x ) );
+
+        public static IEnumerable<T> Concat<T>( this IEnumerable<T> enumerable, T another )
         {
-            return enumerable.Where( x => !predicate( x ) );
+            foreach( var item in enumerable ) yield return item;
+
+            yield return another;
         }
     }
 }

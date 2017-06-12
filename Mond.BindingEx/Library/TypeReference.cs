@@ -6,18 +6,18 @@ namespace Mond.BindingEx.Library
     [MondClass]
     internal class TypeReference
     {
-        public Type Type { get; private set; }
+        public Type Type { get; }
 
         public TypeReference( Type type )
         {
             if( type == null )
-                throw new ArgumentNullException( "type" );
+                throw new ArgumentNullException( nameof( type ) );
 
             this.Type = type;
         }
 
         /// <summary>
-        /// Get a nested type.
+        ///     Get a nested type.
         /// </summary>
         [MondFunction( "__get" )]
         public MondValue Get( MondState state, MondValue instance, string name )
@@ -32,8 +32,8 @@ namespace Mond.BindingEx.Library
         }
 
         /// <summary>
-        /// Bind type arguments to a generic type. Only used when the type has an overload
-        /// with no type arguments.
+        ///     Bind type arguments to a generic type. Only used when the type has an overload
+        ///     with no type arguments.
         /// </summary>
         [MondFunction( "__call" )]
         public MondValue Call( MondState state, MondValue instance, params MondValue[] args )
@@ -53,14 +53,8 @@ namespace Mond.BindingEx.Library
         }
 
         [MondFunction( "__string" )]
-        public string String( MondValue instance )
-        {
-            return this.ToString();
-        }
+        public string String( MondValue instance ) => this.ToString();
 
-        public override string ToString()
-        {
-            return this.Type.FullName;
-        }
+        public override string ToString() => this.Type.FullName;
     }
 }

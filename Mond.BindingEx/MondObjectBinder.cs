@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Mond.Binding;
 using Mond.BindingEx.Library;
 
@@ -11,45 +12,65 @@ namespace Mond.BindingEx
     {
         private static readonly Dictionary<Type, MondValue> BindingCache;
 
-        static MondObjectBinder()
-        {
-            BindingCache = new Dictionary<Type, MondValue>();
-        }
+        static MondObjectBinder() { MondObjectBinder.BindingCache = new Dictionary<Type, MondValue>(); }
 
         public static MondValue Bind<T>( MondState state = null, MondBindingOptions options = MondBindingOptions.None )
-        {
-            var dummy = null as MondValue;
-            return Bind( typeof( T ), out dummy, state, options );
-        }
+            => MondObjectBinder.Bind( typeof( T ), out var dummy, state, options );
 
-        public static MondValue Bind<T>( out MondValue prototype, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
-        {
-            return Bind( typeof( T ), out prototype, state, options );
-        }
+        public static MondValue Bind<T>(
+            out MondValue prototype,
+            MondState state = null,
+            MondBindingOptions options = MondBindingOptions.None )
+            => MondObjectBinder.Bind(
+                typeof( T ),
+                out prototype,
+                state,
+                options );
 
-        public static MondValue Bind<T>( T instance, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
-        {
-            return Bind( typeof( T ), instance, state, options );
-        }
+        public static MondValue Bind<T>(
+            T instance,
+            MondState state = null,
+            MondBindingOptions options = MondBindingOptions.None )
+            => MondObjectBinder.Bind(
+                typeof( T ),
+                instance,
+                state,
+                options );
 
-        public static MondValue Bind<T>( T instance, out MondValue prototype, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
-        {
-            return Bind( typeof( T ), instance, out prototype, state, options );
-        }
+        public static MondValue Bind<T>(
+            T instance,
+            out MondValue prototype,
+            MondState state = null,
+            MondBindingOptions options = MondBindingOptions.None )
+            => MondObjectBinder.Bind(
+                typeof( T ),
+                instance,
+                out prototype,
+                state,
+                options );
 
-        public static MondValue Bind( Type type, object instance, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
-        {
-            var dummy = null as MondValue;
-            return Bind( type, instance, out dummy, state, options );
-        }
+        public static MondValue Bind(
+            Type type,
+            object instance,
+            MondState state = null,
+            MondBindingOptions options = MondBindingOptions.None )
+            => MondObjectBinder.Bind( type, instance, out var dummy, state, options );
 
-        public static MondValue Bind( Type type, object instance, out MondValue prototype, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
+        public static MondValue Bind(
+            Type type,
+            object instance,
+            out MondValue prototype,
+            MondState state = null,
+            MondBindingOptions options = MondBindingOptions.None )
         {
             if( options.HasFlag( MondBindingOptions.AutoInsert ) )
-                throw new ArgumentException( "MondBindingOptions.AutoInsert is not valid when binding object instances" );
+            {
+                throw new ArgumentException(
+                    "MondBindingOptions.AutoInsert is not valid when binding object instances" );
+            }
 
             var binding = new MondValue( state );
-            var tempBinding = Bind( type, out prototype, state, options );
+            MondObjectBinder.Bind( type, out prototype, state, options );
 
             binding.Prototype = prototype;
             binding.UserData = instance;
@@ -57,84 +78,120 @@ namespace Mond.BindingEx
             return binding;
         }
 
-        public static MondValue Bind( Type type, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
-        {
-            var dummy = null as MondValue;
-            return Bind( type, out dummy, state, options );
-        }
+        public static MondValue Bind(
+            Type type,
+            MondState state = null,
+            MondBindingOptions options = MondBindingOptions.None )
+            => MondObjectBinder.Bind( type, out var dummy, state, options );
 
-        public static MondValue Bind( MulticastDelegate function, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
-        {
-            return Bind( function as Delegate, state, options );
-        }
+        public static MondValue Bind(
+            MulticastDelegate function,
+            MondState state = null,
+            MondBindingOptions options = MondBindingOptions.None )
+            => MondObjectBinder.Bind(
+                function as Delegate,
+                state,
+                options );
 
-        public static MondValue Bind( Delegate function, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
-        {
-            return Bind( function, function.Method.GetName(), state, options );
-        }
+        public static MondValue Bind(
+            Delegate function,
+            MondState state = null,
+            MondBindingOptions options = MondBindingOptions.None )
+            => MondObjectBinder.Bind(
+                function,
+                function.Method.GetName(),
+                state,
+                options );
 
-        public static MondValue Bind( MulticastDelegate function, string name, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
-        {
-            return Bind( function as Delegate, name, state, options );
-        }
+        public static MondValue Bind(
+            MulticastDelegate function,
+            string name,
+            MondState state = null,
+            MondBindingOptions options = MondBindingOptions.None )
+            => MondObjectBinder.Bind(
+                function as Delegate,
+                name,
+                state,
+                options );
 
-        public static MondValue Bind( Delegate function, string name, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
+        public static MondValue Bind(
+            Delegate function,
+            string name,
+            MondState state = null,
+            MondBindingOptions options = MondBindingOptions.None )
         {
             if( options.HasFlag( MondBindingOptions.AutoLock ) )
-                throw new ArgumentException( "MondBindingOptions.AutoLock is not valid when binding delegates", "options" );
+            {
+                throw new ArgumentException(
+                    "MondBindingOptions.AutoLock is not valid when binding delegates",
+                    nameof( options ) );
+            }
 
             var shim = BindingUtils.CreateStaticMethodShim( function );
 
-            if( options.HasFlag( MondBindingOptions.AutoInsert ) )
+            if( !options.HasFlag( MondBindingOptions.AutoInsert ) ) return shim;
+
+            if( state == null )
             {
-                if( state == null )
-                    throw new ArgumentNullException( "state", "Must specify a valid MondState when specifying MondBindingOptions.AutoInsert" );
-
-                if( String.IsNullOrWhiteSpace( name ) )
-                    throw new ArgumentException( "Must provide a valid name when specifying MondBindingOptions.AutoInsert", "name" );
-
-                state[name] = shim;
+                throw new ArgumentNullException(
+                    nameof( state ),
+                    "Must specify a valid MondState when specifying MondBindingOptions.AutoInsert" );
             }
 
-            return shim;
+            if( String.IsNullOrWhiteSpace( name ) )
+            {
+                throw new ArgumentException(
+                    "Must provide a valid name when specifying MondBindingOptions.AutoInsert",
+                    nameof( name ) );
+            }
+
+            return state[name] = shim;
         }
 
-        public static MondValue Bind( Type type, out MondValue prototype, MondState state = null, MondBindingOptions options = MondBindingOptions.None )
+        public static MondValue Bind(
+            Type type,
+            out MondValue prototype,
+            MondState state = null,
+            MondBindingOptions options = MondBindingOptions.None )
         {
-            if( options.HasFlag( MondBindingOptions.AutoInsert ) && state == null )
-                throw new ArgumentNullException( "state", "A valid MondState must be given when MondBindingOptions.AutoInsert is present" );
+            if( options.HasFlag( MondBindingOptions.AutoInsert ) && ( state == null ) )
+            {
+                throw new ArgumentNullException(
+                    nameof( state ),
+                    "A valid MondState must be given when MondBindingOptions.AutoInsert is present" );
+            }
 
-            prototype = null as MondValue;
+            prototype = null;
 
             var binding = null as MondValue;
 
-            if( BindingCache.ContainsKey( type ) )
+            if( MondObjectBinder.BindingCache.ContainsKey( type ) )
             {
-                binding = BindingCache[type];
+                binding = MondObjectBinder.BindingCache[type];
                 prototype = binding.Prototype;
 
                 return binding;
             }
 
             if( type.IsEnum )
-                binding = BindEnum( type, state );
+                binding = MondObjectBinder.BindEnum( type, state );
 
             if( type.IsClass || type.IsStruct() )
-                binding = BindClass( type, state, out prototype );
+                binding = MondObjectBinder.BindClass( type, state, out prototype );
 
             if( options.HasFlag( MondBindingOptions.AutoLock ) )
             {
-                if( binding != null && binding.Type == MondValueType.Object )
+                if( ( binding != null ) && ( binding.Type == MondValueType.Object ) )
                     binding.Lock();
 
-                if( prototype != null && prototype.Type == MondValueType.Object )
+                if( ( prototype != null ) && ( prototype.Type == MondValueType.Object ) )
                     prototype.Lock();
             }
 
             if( options.HasFlag( MondBindingOptions.AutoInsert ) )
                 state[type.GetName()] = binding;
 
-            BindingCache.Add( type, binding );
+            MondObjectBinder.BindingCache.Add( type, binding );
             return binding;
         }
 
@@ -147,7 +204,8 @@ namespace Mond.BindingEx
             foreach( var pair in pairs )
                 binding[pair.Name] = (double)Convert.ChangeType( pair.Value, typeof( double ) );
 
-            binding["hasFlag"] = BindingUtils.CreateStaticMethodShim( new Func<int, int, bool>( ( x, y ) => ( x & y ) == y ) );
+            binding["hasFlag"] =
+                    BindingUtils.CreateStaticMethodShim( new Func<long, long, bool>( ( x, y ) => ( x & y ) == y ) );
             binding.UserData = type;
             return binding;
         }
@@ -155,22 +213,29 @@ namespace Mond.BindingEx
         private static MondValue BindClass( Type type, MondState state, out MondValue prototype )
         {
             if( type.IsAbstract && !type.IsSealed )
-                throw new ArgumentException( "Cannot bind abstract classes", "type" );
+                throw new ArgumentException( "Cannot bind abstract classes", nameof( type ) );
+
+            if( type.IsInterface )
+                throw new ArgumentException( "Cannot bind interfaces", nameof( type ) );
 
             prototype = new MondValue( state );
             var binding = new MondValue( state );
             var methodComparer = new MethodNameComparer();
             var propertyComparer = new PropertyNameComparer();
             var isStatic = type.IsSealed && type.IsAbstract;
-            var methods = null as IEnumerable<MethodInfo>;
-            var properties = null as IEnumerable<PropertyInfo>;
+            IEnumerable<MethodInfo> methods;
+            IEnumerable<PropertyInfo> properties;
 
             if( isStatic )
                 prototype = null;
 
-            Func<MethodInfo, bool> IsOperator = m => m.GetCustomAttribute<MondOperatorAttribute>() != null;
-            Func<MethodInfo, bool> IsProperty = m => m.IsSpecialName && ( m.Name.StartsWith( "get_" ) || m.Name.StartsWith( "set_" ) );
-            Func<MemberInfo, bool> ShouldIgnore = m => m.GetCustomAttribute<MondIgnoreAttribute>() != null;
+            bool IsOperator( MethodInfo m ) => m.GetCustomAttribute<MondOperatorAttribute>() != null;
+
+            bool IsProperty( MethodInfo m ) => m.IsSpecialName &&
+                                               ( m.Name.StartsWith( "get_" ) || m.Name.StartsWith( "set_" ) );
+
+            bool ShouldIgnore( MemberInfo m ) => ( m.GetCustomAttribute<MondIgnoreAttribute>() != null ) ||
+                                                 ( m.GetCustomAttribute<CompilerGeneratedAttribute>() != null );
 
             if( !isStatic )
             {
@@ -178,20 +243,22 @@ namespace Mond.BindingEx
                 methods = type.GetMethods( BindingFlags.Public | BindingFlags.Instance )
                               .Reject( IsOperator )
                               .Reject( IsProperty )
-                              .Reject( m => ShouldIgnore( m ) )
-                              .Distinct( methodComparer );
+                              .Reject( ShouldIgnore )
+                              .Distinct( methodComparer )
+                              .ToArray();
 
                 foreach( var method in methods )
                 {
                     // Ignore some methods inherited from System.Object
-                    if( /* method.Name == "ToString" || method.Name == "GetHashCode" || */ method.Name == "Equals" || method.Name == "GetType" )
+                    if( /* method.Name == "ToString" || method.Name == "GetHashCode" || */
+                        ( method.Name == "Equals" ) || ( method.Name == "GetType" ) )
                         continue;
 
                     var shim = BindingUtils.CreateInstanceMethodShim( type, method.GetName() );
                     prototype[method.GetName()] = shim;
                 }
 
-                if( !methods.Any( m => m.GetName() == "__string" ) )
+                if( methods.All( m => m.GetName() != "__string" ) )
                 {
                     var shim = BindingUtils.CreateInstanceMethodShim( type, "ToString" );
                     prototype["__string"] = shim;
@@ -203,8 +270,9 @@ namespace Mond.BindingEx
                           .Reject( IsOperator )
                           .Reject( IsProperty )
                           .Reject( m => m.IsSpecialName && m.Name.StartsWith( "op_" ) )
-                          .Reject( m => ShouldIgnore( m ) )
-                          .Distinct( methodComparer );
+                          .Reject( ShouldIgnore )
+                          .Distinct( methodComparer )
+                          .ToArray();
 
             foreach( var method in methods )
             {
@@ -215,80 +283,52 @@ namespace Mond.BindingEx
             // Hook up user defined operators
             methods = type.GetMethods( BindingFlags.Public | BindingFlags.Static )
                           .Where( IsOperator )
-                          .Reject( m => ShouldIgnore( m ) )
+                          .Reject( ShouldIgnore )
                           .Distinct( new OperatorAttributeComparer() );
 
-            if( !methods.Any() && state == null )
-                throw new ArgumentException( "Must provide a valid MondState when attempting to bind user defined operators", "state" );
+            if( !methods.Any() && ( state == null ) )
+            {
+                throw new ArgumentException(
+                    "Must provide a valid MondState when attempting to bind user defined operators",
+                    nameof( state ) );
+            }
 
             foreach( var method in methods )
             {
                 var attr = method.GetCustomAttribute<MondOperatorAttribute>();
-                var shim = BindingUtils.CreateStaticMethodShim( type, method.GetName() );
-                state["__ops"][attr.Operator] = shim;
+                state["__ops"][attr.Operator] = BindingUtils.CreateStaticMethodShim( type, method.GetName() );
             }
 
             if( !isStatic )
             {
                 // Hook up instance properties
                 properties = type.GetProperties( BindingFlags.Public | BindingFlags.Instance )
-                                 .Reject( m => ShouldIgnore( m ) )
+                                 .Reject( ShouldIgnore )
                                  .Distinct( propertyComparer );
 
                 foreach( var prop in properties )
                 {
-                    var method = null as MethodInfo;
-                    var shim = null as MondInstanceFunction;
-                    var name = null as string;
-
-                    if( ( method = prop.GetGetMethod() ) != null )
-                    {
-                        shim = BindingUtils.CreateInstanceMethodShim( type, method.GetName() );
-                        name = "get{0}".With( prop.GetName() );
-                        prototype[name] = shim;
-                    }
-
-                    if( ( method = prop.GetSetMethod() ) != null )
-                    {
-                        shim = BindingUtils.CreateInstanceMethodShim( type, method.GetName() );
-                        name = "set{0}".With( prop.GetName() );
-                        prototype[name] = shim;
-                    }
+                    var propMethods = new[] { prop.GetGetMethod(), prop.GetSetMethod() }.Reject( m => m == null );
+                    prototype[prop.Name] = BindingUtils.CreateInstanceOverloadGroupShim( propMethods );
                 }
             }
 
             // Hook up static properties
             properties = type.GetProperties( BindingFlags.Public | BindingFlags.Static )
-                             .Reject( m => ShouldIgnore( m ) )
+                             .Reject( ShouldIgnore )
                              .Distinct( propertyComparer );
 
             foreach( var prop in properties )
             {
-                var method = null as MethodInfo;
-                var shim = null as MondFunction;
-                var name = null as string;
-
-                if( ( method = prop.GetGetMethod() ) != null )
-                {
-                    shim = BindingUtils.CreateStaticMethodShim( type, method.GetName() );
-                    name = "get{0}".With( prop.GetName() );
-                    binding[name] = shim;
-                }
-
-                if( ( method = prop.GetSetMethod() ) != null )
-                {
-                    shim = BindingUtils.CreateStaticMethodShim( type, method.GetName() );
-                    name = "set{0}".With( prop.GetName() );
-                    binding[name] = shim;
-                }
+                var propMethods = new[] { prop.GetGetMethod(), prop.GetSetMethod() }.Reject( m => m == null );
+                binding[prop.Name] = BindingUtils.CreateStaticOverloadGroupShim( propMethods );
             }
 
             if( !isStatic )
-                // Hook up the constructor
+                    // Hook up the constructor
                 binding["new"] = BindingUtils.CreateConstructorShim( type, prototype );
 
-            MondValue typePrototype;
-            MondClassBinder.Bind<TypeReference>( out typePrototype, state );
+            MondClassBinder.Bind<TypeReference>( state, out var typePrototype );
             binding.Prototype = typePrototype;
             binding.UserData = new TypeReference( type );
 

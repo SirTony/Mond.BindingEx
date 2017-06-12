@@ -15,7 +15,7 @@ An alternative binding API for Mond that uses (read: abuses) reflection and LINQ
     - [x] Properties
     - [x] User defined operators
     - [ ] Events
-    - [ ] Nested objects
+    - [x] Nested objects
 - [x] Enum binding
 - [x] Delegate/function binding
 - [x] Method parameter/return type conversion (*partial*)
