@@ -1,13 +1,15 @@
 ﻿using System.Reflection;
 
-namespace Mond.BindingEx
+namespace Mond.BindingEx.Utils.Extensions
 {
     internal static class MemberInfoExtensions
     {
-        public static string GetName( this MemberInfo info )
+        public static string GetName( this MemberInfo info, MondBindingOptions options )
         {
-            var alias = info.GetCustomAttribute<MondAliasAttribute>( true );
-            return alias != null ? alias.Name : info.Name;
+            var name = info.GetCustomAttribute<MondAliasAttribute>( true )?.Name ?? info.Name;
+            return options.HasFlag( MondBindingOptions.PreserveNames ) && !name.StartsWith( "__" )
+                ? name
+                : name.ChangeNameCase();
         }
     }
 }

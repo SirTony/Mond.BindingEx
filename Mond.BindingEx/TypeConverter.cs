@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using Mond.BindingEx.Utils.Extensions;
 
 namespace Mond.BindingEx
 {
@@ -308,9 +309,9 @@ namespace Mond.BindingEx
         }
 
         private static void UnsupportedMondTypeError( MondValueType type ) => throw new NotSupportedException(
-            "Unsupported MondValueType '{0}'".With( type.GetName() ) );
+            $"Unsupported MondValueType '{type.GetName()}'" );
 
         private static void UnsupportedClrTypeError( Type type ) => throw new NotSupportedException(
-            "Unsupported CLR type '{0}'".With( type.Name ) );
+            $"Unsupported CLR type '{type.Name}'" );
     }
 }

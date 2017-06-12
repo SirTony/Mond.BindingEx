@@ -32,7 +32,7 @@ namespace Mond.BindingEx.Library
 
                 if( ( value.Type != MondValueType.Object ) ||
                     ( !( value.UserData is TypeReference ) && !( value.UserData is Type ) ) )
-                    throw new ArgumentException( "Argument #{0} is not a CLR type".With( i ), nameof( values ) );
+                    throw new ArgumentException( $"Argument #{i} is not a CLR type", nameof( values ) );
 
                 if( value.UserData is TypeReference typeRef )
                     types[i] = typeRef.Type;

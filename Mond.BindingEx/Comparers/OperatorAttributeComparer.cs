@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Reflection;
 
-namespace Mond.BindingEx
+namespace Mond.BindingEx.Comparers
 {
     internal sealed class OperatorAttributeComparer : IEqualityComparer<MethodInfo>
     {

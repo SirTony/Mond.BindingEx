@@ -4,7 +4,10 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Mond.Binding;
+using Mond.BindingEx.Comparers;
 using Mond.BindingEx.Library;
+using Mond.BindingEx.Utils;
+using Mond.BindingEx.Utils.Extensions;
 
 namespace Mond.BindingEx
 {
@@ -99,7 +102,7 @@ namespace Mond.BindingEx
             MondBindingOptions options = MondBindingOptions.None )
             => MondObjectBinder.Bind(
                 function,
-                function.Method.GetName(),
+                function.Method.GetName( options ),
                 state,
                 options );
 
@@ -127,7 +130,7 @@ namespace Mond.BindingEx
                     nameof( options ) );
             }
 
-            var shim = BindingUtils.CreateStaticMethodShim( function );
+            var shim = BindingUtils.CreateStaticMethodShim( function, options );
 
             if( !options.HasFlag( MondBindingOptions.AutoInsert ) ) return shim;
 
@@ -174,10 +177,10 @@ namespace Mond.BindingEx
             }
 
             if( type.IsEnum )
-                binding = MondObjectBinder.BindEnum( type, state );
+                binding = MondObjectBinder.BindEnum( type, state, options );
 
             if( type.IsClass || type.IsStruct() )
-                binding = MondObjectBinder.BindClass( type, state, out prototype );
+                binding = MondObjectBinder.BindClass( type, state, out prototype, options );
 
             if( options.HasFlag( MondBindingOptions.AutoLock ) )
             {
@@ -195,22 +198,28 @@ namespace Mond.BindingEx
             return binding;
         }
 
-        private static MondValue BindEnum( Type type, MondState state )
+        private static MondValue BindEnum( Type type, MondState state, MondBindingOptions options )
         {
             var binding = new MondValue( state );
             var pairs = type.GetFields( BindingFlags.Public | BindingFlags.Static )
-                            .Select( m => new { Name = m.GetName(), Value = m.GetRawConstantValue() } );
+                            .Select( m => new { Name = m.GetName( options ), Value = m.GetRawConstantValue() } );
 
             foreach( var pair in pairs )
                 binding[pair.Name] = (double)Convert.ChangeType( pair.Value, typeof( double ) );
 
             binding["hasFlag"] =
-                    BindingUtils.CreateStaticMethodShim( new Func<long, long, bool>( ( x, y ) => ( x & y ) == y ) );
+                    BindingUtils.CreateStaticMethodShim(
+                        new Func<long, long, bool>( ( x, y ) => ( x & y ) == y ),
+                        options );
             binding.UserData = type;
             return binding;
         }
 
-        private static MondValue BindClass( Type type, MondState state, out MondValue prototype )
+        private static MondValue BindClass(
+            Type type,
+            MondState state,
+            out MondValue prototype,
+            MondBindingOptions options )
         {
             if( type.IsAbstract && !type.IsSealed )
                 throw new ArgumentException( "Cannot bind abstract classes", nameof( type ) );
@@ -220,8 +229,8 @@ namespace Mond.BindingEx
 
             prototype = new MondValue( state );
             var binding = new MondValue( state );
-            var methodComparer = new MethodNameComparer();
-            var propertyComparer = new PropertyNameComparer();
+            var methodComparer = new MethodNameComparer( options );
+            var propertyComparer = new PropertyNameComparer( options );
             var isStatic = type.IsSealed && type.IsAbstract;
             IEnumerable<MethodInfo> methods;
             IEnumerable<PropertyInfo> properties;
@@ -254,13 +263,13 @@ namespace Mond.BindingEx
                         ( method.Name == "Equals" ) || ( method.Name == "GetType" ) )
                         continue;
 
-                    var shim = BindingUtils.CreateInstanceMethodShim( type, method.GetName() );
-                    prototype[method.GetName()] = shim;
+                    var shim = BindingUtils.CreateInstanceMethodShim( type, method.GetName( options ), options );
+                    prototype[method.GetName( options )] = shim;
                 }
 
-                if( methods.All( m => m.GetName() != "__string" ) )
+                if( methods.All( m => m.GetName( options ) != "__string" ) )
                 {
-                    var shim = BindingUtils.CreateInstanceMethodShim( type, "ToString" );
+                    var shim = BindingUtils.CreateInstanceMethodShim( type, "ToString", options );
                     prototype["__string"] = shim;
                 }
             }
@@ -276,8 +285,8 @@ namespace Mond.BindingEx
 
             foreach( var method in methods )
             {
-                var shim = BindingUtils.CreateStaticMethodShim( type, method.GetName() );
-                binding[method.GetName()] = shim;
+                var shim = BindingUtils.CreateStaticMethodShim( type, method.GetName( options ), options );
+                binding[method.GetName( options )] = shim;
             }
 
             // Hook up user defined operators
@@ -296,7 +305,8 @@ namespace Mond.BindingEx
             foreach( var method in methods )
             {
                 var attr = method.GetCustomAttribute<MondOperatorAttribute>();
-                state["__ops"][attr.Operator] = BindingUtils.CreateStaticMethodShim( type, method.GetName() );
+                state["__ops"][attr.Operator] =
+                        BindingUtils.CreateStaticMethodShim( type, method.GetName( options ), options );
             }
 
             if( !isStatic )
@@ -309,7 +319,8 @@ namespace Mond.BindingEx
                 foreach( var prop in properties )
                 {
                     var propMethods = new[] { prop.GetGetMethod(), prop.GetSetMethod() }.Reject( m => m == null );
-                    prototype[prop.Name] = BindingUtils.CreateInstanceOverloadGroupShim( propMethods );
+                    prototype[prop.GetName( options )] =
+                            BindingUtils.CreateInstanceOverloadGroupShim( propMethods, options );
                 }
             }
 
@@ -321,12 +332,12 @@ namespace Mond.BindingEx
             foreach( var prop in properties )
             {
                 var propMethods = new[] { prop.GetGetMethod(), prop.GetSetMethod() }.Reject( m => m == null );
-                binding[prop.Name] = BindingUtils.CreateStaticOverloadGroupShim( propMethods );
+                binding[prop.GetName( options )] = BindingUtils.CreateStaticOverloadGroupShim( propMethods, options );
             }
 
             if( !isStatic )
                     // Hook up the constructor
-                binding["new"] = BindingUtils.CreateConstructorShim( type, prototype );
+                binding["new"] = BindingUtils.CreateConstructorShim( type, prototype, options );
 
             MondClassBinder.Bind<TypeReference>( state, out var typePrototype );
             binding.Prototype = typePrototype;

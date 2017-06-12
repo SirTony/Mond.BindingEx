@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Mond.BindingEx
+namespace Mond.BindingEx.Utils.Extensions
 {
     internal static class EnumerableExtensions
     {

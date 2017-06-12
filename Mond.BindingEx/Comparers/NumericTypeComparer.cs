@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 
-namespace Mond.BindingEx
+namespace Mond.BindingEx.Comparers
 {
     internal class NumericTypeComparer<T> : IEqualityComparer<ReflectedMember<T>>
     {

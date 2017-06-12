@@ -15,9 +15,11 @@ namespace Mond.BindingEx
         public MondAliasAttribute( string name )
         {
             if( String.IsNullOrWhiteSpace( name ) )
+            {
                 throw new ArgumentException(
                     "Name cannot be null, empty, or consist of only whitespace",
                     nameof( name ) );
+            }
 
             this.Name = name;
         }
