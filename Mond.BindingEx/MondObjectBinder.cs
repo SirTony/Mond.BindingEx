@@ -224,10 +224,13 @@ namespace Mond.BindingEx
         {
             var info = type.GetTypeInfo();
             if( info.IsAbstract && !info.IsSealed )
-                throw new ArgumentException( "Cannot bind abstract classes", nameof( type ) );
+                throw new ArgumentException( $"Cannot bind abstract class '{type.FullName}'", nameof( type ) );
 
             if( info.IsInterface )
-                throw new ArgumentException( "Cannot bind interfaces", nameof( type ) );
+                throw new ArgumentException( $"Cannot bind interface '{type.FullName}'", nameof( type ) );
+
+            if( info.Name.StartsWith( "__StaticArrayInitTypeSize" ) )
+                throw new InvalidOperationException( "Cannot bind static array initializers" );
 
             prototype = new MondValue( state );
             var binding = new MondValue( state );

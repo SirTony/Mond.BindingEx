@@ -15,7 +15,7 @@ namespace Mond.BindingEx.Utils.Extensions
         {
             var info = type.GetTypeInfo();
             return info.GetCustomAttribute<MondAliasAttribute>( true )?.Name ??
-                   ( info.IsGenericType
+                   ( info.IsGenericType && type.Name.Contains( "`" )
                        ? type.Name.Substring( 0, type.Name.IndexOf( "`", StringComparison.Ordinal ) )
                        : type.Name );
         }

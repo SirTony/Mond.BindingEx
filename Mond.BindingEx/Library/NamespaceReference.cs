@@ -4,7 +4,7 @@ using Mond.Binding;
 namespace Mond.BindingEx.Library
 {
     [MondClass]
-    internal class NamespaceReference
+    internal sealed class NamespaceReference
     {
         private readonly string _path;
 

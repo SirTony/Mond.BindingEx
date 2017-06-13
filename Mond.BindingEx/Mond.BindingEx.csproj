@@ -6,7 +6,7 @@
     <Version>0.1.0</Version>
     <Authors>Tony J. Hudgins</Authors>
     <Description>An alternative binding API for the Mond scripting language.</Description>
-    <Copyright>Copyright</Copyright>
+    <Copyright>Copyright © 2017 Tony J. Hudgins</Copyright>
     <PackageLicenseUrl>https://github.com/SirTony/Mond.BindingEx/blob/master/LICENSE</PackageLicenseUrl>
     <PackageProjectUrl>https://github.com/SirTony/Mond.BindingEx</PackageProjectUrl>
     <PackageTags>Mond Scripting Binding</PackageTags>

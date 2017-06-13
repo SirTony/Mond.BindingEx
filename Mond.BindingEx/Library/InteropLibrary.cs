@@ -7,7 +7,7 @@ using Mond.Libraries;
 
 namespace Mond.BindingEx.Library
 {
-    public class InteropLibraries : IMondLibraryCollection
+    public sealed class InteropLibraries : IMondLibraryCollection
     {
         public static InteropLibraries Instance { get; } = new InteropLibraries();
 
@@ -16,7 +16,7 @@ namespace Mond.BindingEx.Library
         public IEnumerable<IMondLibrary> Create( MondState state ) { yield return new InteropLibrary(); }
     }
 
-    public class InteropLibrary : IMondLibrary
+    public sealed class InteropLibrary : IMondLibrary
     {
         internal static Type LookupType( string typeName )
         {

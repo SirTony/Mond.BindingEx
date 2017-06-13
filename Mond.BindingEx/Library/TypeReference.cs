@@ -5,7 +5,7 @@ using Mond.Binding;
 namespace Mond.BindingEx.Library
 {
     [MondClass]
-    internal class TypeReference
+    internal sealed class TypeReference
     {
         public Type Type { get; }
         public TypeInfo TypeInfo { get; }
