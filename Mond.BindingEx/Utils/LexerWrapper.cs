@@ -12,20 +12,17 @@ namespace Mond.BindingEx.Utils
 
         static LexerWrapper()
         {
-            LexerWrapper.LexerType = typeof( MondState ).Assembly.GetTypes()
+            LexerWrapper.LexerType = typeof( MondState ).GetTypeInfo()
+                                                        .Assembly.GetTypes()
                                                         .First( t => t.FullName == "Mond.Compiler.Lexer" );
+
             LexerWrapper.IsOperatorTokenMethod = LexerWrapper.LexerType.GetMethod(
                 "IsOperatorToken",
-                BindingFlags.Public | BindingFlags.Static,
-                null,
-                new[] { typeof( string ) },
-                null );
+                new[] { typeof( string ) } );
+
             LexerWrapper.OperatorExistsMethod = LexerWrapper.LexerType.GetMethod(
                 "OperatorExists",
-                BindingFlags.Public | BindingFlags.Static,
-                null,
-                new[] { typeof( string ) },
-                null );
+                new[] { typeof( string ) } );
         }
 
         public static bool IsOperatorToken( string @operator )

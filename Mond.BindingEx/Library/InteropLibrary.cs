@@ -1,12 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using Microsoft.Extensions.DependencyModel;
 using Mond.Libraries;
 
 namespace Mond.BindingEx.Library
 {
     public class InteropLibraries : IMondLibraryCollection
     {
+        public static InteropLibraries Instance { get; } = new InteropLibraries();
+
+        private InteropLibraries() { }
+
         public IEnumerable<IMondLibrary> Create( MondState state ) { yield return new InteropLibrary(); }
     }
 
@@ -18,8 +24,26 @@ namespace Mond.BindingEx.Library
             if( type != null )
                 return type;
 
-            var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-            return assemblies.Select( a => a.GetType( typeName ) ).FirstOrDefault( t => t != null );
+            return DependencyContext.Default
+                                    .RuntimeLibraries
+                                    .Select( lib => TryLoad( lib.Name ) )
+                                    .Where( asm => asm != null )
+                                    .SelectMany( asm => asm.GetTypes() )
+                                    .Where( t => t.GetTypeInfo().IsPublic )
+                                    .FirstOrDefault( t => t.FullName == typeName );
+
+            Assembly TryLoad( string libraryName )
+            {
+                try
+                {
+                    var asmName = new AssemblyName( libraryName );
+                    return Assembly.Load( asmName );
+                }
+                catch
+                {
+                    return null;
+                }
+            }
         }
 
         internal static Type[] GetTypeArray( MondValue[] values )
@@ -45,9 +69,10 @@ namespace Mond.BindingEx.Library
 
         public IEnumerable<KeyValuePair<string, MondValue>> GetDefinitions()
         {
-            var importNamespace = new MondValue(
-                ( state, instance, args ) => new NamespaceReference( args[0] ).ToMond( state ) );
-            yield return new KeyValuePair<string, MondValue>( "importNamespace", importNamespace );
+            MondValue ImportNamespace( MondState state, MondValue instance, MondValue[] args )
+                => new NamespaceReference( args[0] ).ToMond( state );
+
+            yield return new KeyValuePair<string, MondValue>( "using", new MondValue( ImportNamespace ) );
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Reflection;
 using Mond.Binding;
 
 namespace Mond.BindingEx.Library
@@ -7,13 +8,12 @@ namespace Mond.BindingEx.Library
     internal class TypeReference
     {
         public Type Type { get; }
+        public TypeInfo TypeInfo { get; }
 
         public TypeReference( Type type )
         {
-            if( type == null )
-                throw new ArgumentNullException( nameof( type ) );
-
-            this.Type = type;
+            this.Type = type ?? throw new ArgumentNullException( nameof( type ) );
+            this.TypeInfo = type.GetTypeInfo();
         }
 
         /// <summary>
@@ -38,7 +38,7 @@ namespace Mond.BindingEx.Library
         [MondFunction( "__call" )]
         public MondValue Call( MondState state, MondValue instance, params MondValue[] args )
         {
-            if( this.Type.IsGenericType && !this.Type.ContainsGenericParameters )
+            if( this.TypeInfo.IsGenericType && !this.TypeInfo.ContainsGenericParameters )
                 throw new Exception( "Generic type is already bound: " + this.Type.FullName );
 
             var types = InteropLibrary.GetTypeArray( args );

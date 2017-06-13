@@ -71,7 +71,7 @@ namespace Mond.BindingEx.Utils
                    var values = TypeConverter.MarshalToClr( args, target.Types, state );
                    var result = target.Method.DynamicInvoke( values );
 
-                   if( target.Method.Method.ReturnType == typeof( void ) )
+                   if( target.Method.GetMethodInfo().ReturnType == typeof( void ) )
                        return MondValue.Undefined;
 
                    if( result == null ) return MondValue.Null;
@@ -208,7 +208,7 @@ namespace Mond.BindingEx.Utils
                            else if( member is MethodInfo )
                                memberName = ( member as MethodInfo ).GetName( options );
                            else if( member is Delegate )
-                               memberName = ( member as Delegate ).Method.GetName( options );
+                               memberName = ( member as Delegate ).GetMethodInfo().GetName( options );
 
                            if( memberName != name )
                                return new ReflectedMember<T> { Matched = false };
@@ -221,7 +221,7 @@ namespace Mond.BindingEx.Utils
                        else if( member is MethodInfo )
                            all = ( member as MethodInfo ).GetParameters();
                        else if( member is Delegate )
-                           all = ( member as Delegate ).Method.GetParameters();
+                           all = ( member as Delegate ).GetMethodInfo().GetParameters();
 
                        var required = all.Reject( p => p.IsOptional ).ToArray();
 

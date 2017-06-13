@@ -64,6 +64,7 @@ namespace Mond.BindingEx
             if( clrType == typeof( MondValue ) )
                 return true;
 
+            var info = clrType.GetTypeInfo();
             // ReSharper disable once SwitchStatementMissingSomeCases
             switch( mondType )
             {
@@ -72,16 +73,12 @@ namespace Mond.BindingEx
 
                 case MondValueType.String: return clrType == typeof( string );
 
-                case MondValueType.Number: return TypeConverter.NumericTypes.Contains( clrType ) || clrType.IsEnum;
+                case MondValueType.Number: return TypeConverter.NumericTypes.Contains( clrType ) || info.IsEnum;
 
                 case MondValueType.Null:
-                case MondValueType.Undefined: return !clrType.IsValueType;
+                case MondValueType.Undefined: return !info.IsValueType;
 
-                case MondValueType.Function:
-                    return ( clrType == typeof( MulticastDelegate ) ) ||
-                           ( clrType == typeof( Delegate ) ) ||
-                           ( clrType.BaseType == typeof( MulticastDelegate ) ) ||
-                           ( clrType.BaseType == typeof( Delegate ) );
+                case MondValueType.Function: return typeof( Delegate ).IsAssignableFrom( clrType );
 
                 case MondValueType.Object:
                     throw new NotSupportedException(
@@ -128,10 +125,11 @@ namespace Mond.BindingEx
                 case MondValueType.Number: return (double)Convert.ChangeType( value, typeof( double ) );
 
                 case MondValueType.Function:
-                    if( value is MulticastDelegate || ( value.GetType().BaseType == typeof( MulticastDelegate ) ) )
+                    var info = value.GetType().GetTypeInfo();
+                    if( value is MulticastDelegate || ( info.BaseType == typeof( MulticastDelegate ) ) )
                         return MondObjectBinder.Bind( value as MulticastDelegate );
 
-                    if( value is Delegate || ( value.GetType().BaseType == typeof( Delegate ) ) )
+                    if( value is Delegate || ( info.BaseType == typeof( Delegate ) ) )
                         return MondObjectBinder.Bind( value as Delegate );
 
                     throw new NotSupportedException( "Unsupported delegate type" );
@@ -184,7 +182,7 @@ namespace Mond.BindingEx
                     return str[0];
 
                 case MondValueType.Number:
-                    if( !expectedType.IsEnum ) return Convert.ChangeType( (double)value, expectedType );
+                    if( !expectedType.GetTypeInfo().IsEnum ) return Convert.ChangeType( (double)value, expectedType );
 
                     var underlying = Enum.GetUnderlyingType( expectedType );
                     var rawValue = Convert.ChangeType( (double)value, underlying );
@@ -229,9 +227,11 @@ namespace Mond.BindingEx
                     var shim = (Func<object[], object>)Shim;
 
                     var paramsExpr = parameters.Select( Expression.Parameter ).ToArray();
-                    //var objectParams = paramsExpr.Select( p => Expression.Convert( p, typeof( object ) ) );
                     var paramsArr = Expression.NewArrayInit( typeof( object ), paramsExpr );
-                    var invokeExpr = Expression.Call( Expression.Constant( shim.Target ), shim.Method, paramsArr );
+                    var invokeExpr = Expression.Call(
+                        Expression.Constant( shim.Target ),
+                        shim.GetMethodInfo(),
+                        paramsArr );
 
                     BlockExpression body;
                     if( invoke.ReturnType == typeof( void ) )
@@ -274,7 +274,7 @@ namespace Mond.BindingEx
             if( ( type == typeof( MulticastDelegate ) ) || ( type == typeof( Delegate ) ) )
                 return MondValueType.Function;
 
-            if( type.IsClass )
+            if( type.GetTypeInfo().IsClass )
                 return MondValueType.Object;
 
             TypeConverter.UnsupportedClrTypeError( type );

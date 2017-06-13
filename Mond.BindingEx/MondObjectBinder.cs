@@ -102,7 +102,7 @@ namespace Mond.BindingEx
             MondBindingOptions options = MondBindingOptions.None )
             => MondObjectBinder.Bind(
                 function,
-                function.Method.GetName( options ),
+                function.GetMethodInfo().GetName( options ),
                 state,
                 options );
 
@@ -176,10 +176,11 @@ namespace Mond.BindingEx
                 return binding;
             }
 
-            if( type.IsEnum )
+            var info = type.GetTypeInfo();
+            if( info.IsEnum )
                 binding = MondObjectBinder.BindEnum( type, state, options );
 
-            if( type.IsClass || type.IsStruct() )
+            if( info.IsClass || type.IsStruct() )
                 binding = MondObjectBinder.BindClass( type, state, out prototype, options );
 
             if( options.HasFlag( MondBindingOptions.AutoLock ) )
@@ -202,7 +203,7 @@ namespace Mond.BindingEx
         {
             var binding = new MondValue( state );
             var pairs = type.GetFields( BindingFlags.Public | BindingFlags.Static )
-                            .Select( m => new { Name = m.GetName( options ), Value = m.GetRawConstantValue() } );
+                            .Select( m => new { Name = m.GetName( options ), Value = m.GetValue( null ) } );
 
             foreach( var pair in pairs )
                 binding[pair.Name] = (double)Convert.ChangeType( pair.Value, typeof( double ) );
@@ -221,17 +222,18 @@ namespace Mond.BindingEx
             out MondValue prototype,
             MondBindingOptions options )
         {
-            if( type.IsAbstract && !type.IsSealed )
+            var info = type.GetTypeInfo();
+            if( info.IsAbstract && !info.IsSealed )
                 throw new ArgumentException( "Cannot bind abstract classes", nameof( type ) );
 
-            if( type.IsInterface )
+            if( info.IsInterface )
                 throw new ArgumentException( "Cannot bind interfaces", nameof( type ) );
 
             prototype = new MondValue( state );
             var binding = new MondValue( state );
             var methodComparer = new MethodNameComparer( options );
             var propertyComparer = new PropertyNameComparer( options );
-            var isStatic = type.IsSealed && type.IsAbstract;
+            var isStatic = info.IsSealed && info.IsAbstract;
             IEnumerable<MethodInfo> methods;
             IEnumerable<PropertyInfo> properties;
 
