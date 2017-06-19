@@ -17,8 +17,11 @@ namespace Mond.BindingEx.Utils.Extensions
         }
 
         [SuppressMessage( "ReSharper", "ArrangeStaticMemberQualifier" )]
-        public static string ChangeNameCase( this string name )
+        public static string ChangeNameCase( this string name, MondBindingOptions options = MondBindingOptions.None )
         {
+            if( options.HasFlag( MondBindingOptions.PreserveNames ) )
+                return name;
+
             if( !StringExtensions.IdentifierRegex.IsMatch( name ) ) return name;
 
             var matches = StringExtensions.IdentifierRegex

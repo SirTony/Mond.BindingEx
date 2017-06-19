@@ -66,12 +66,6 @@ namespace Mond.BindingEx
             MondState state = null,
             MondBindingOptions options = MondBindingOptions.None )
         {
-            if( options.HasFlag( MondBindingOptions.AutoInsert ) )
-            {
-                throw new ArgumentException(
-                    "MondBindingOptions.AutoInsert is not valid when binding object instances" );
-            }
-
             var binding = new MondValue( state );
             MondObjectBinder.Bind( type, out prototype, state, options );
 
@@ -229,8 +223,8 @@ namespace Mond.BindingEx
             if( info.IsInterface )
                 throw new ArgumentException( $"Cannot bind interface '{type.FullName}'", nameof( type ) );
 
-            if( info.Name.StartsWith( "__StaticArrayInitTypeSize" ) )
-                throw new InvalidOperationException( "Cannot bind static array initializers" );
+            if( info.Name.StartsWith( "__StaticArray" ) )
+                throw new InvalidOperationException( "Cannot bind static arrays" );
 
             prototype = new MondValue( state );
             var binding = new MondValue( state );
@@ -261,20 +255,48 @@ namespace Mond.BindingEx
                               .Distinct( methodComparer )
                               .ToArray();
 
+                var hasStringMeta = methods.Any( m => m.GetName( options ) == "__string" );
+                var hasEqMeta = methods.Any( m => m.GetName( options ) == "__eq" );
+
                 foreach( var method in methods )
                 {
-                    // Ignore some methods inherited from System.Object
-                    if( /* method.Name == "ToString" || method.Name == "GetHashCode" || */
-                        ( method.Name == "Equals" ) || ( method.Name == "GetType" ) )
-                        continue;
+                    if( method.Name == nameof( Object.GetType ) )
+                    {
+                        var getTypeShim =
+                                BindingUtils.CreateInstanceMethodShim( type, method.GetName( options ), options );
+
+                        if( options.HasFlag( MondBindingOptions.PreserveNames ) )
+                        {
+                            prototype[method.Name] = getTypeShim;
+                            // we always add this under the getType name so it overrides the built-in prototype method for all values
+                            prototype["getType"] = getTypeShim;
+                        }
+                    }
+
+                    if( ( method.Name == nameof( Object.Equals ) ) && !hasEqMeta ) continue;
+                    if( ( method.Name == nameof( Object.ToString ) ) && !hasStringMeta ) continue;
 
                     var shim = BindingUtils.CreateInstanceMethodShim( type, method.GetName( options ), options );
                     prototype[method.GetName( options )] = shim;
                 }
 
-                if( methods.All( m => m.GetName( options ) != "__string" ) )
+                if( !hasEqMeta )
                 {
-                    var shim = BindingUtils.CreateInstanceMethodShim( type, "ToString", options );
+                    var shim = BindingUtils.CreateInstanceMethodShim(
+                        type,
+                        nameof( Object.Equals ).ChangeNameCase( options ),
+                        options,
+                        true );
+                    prototype["__eq"] = shim;
+                }
+
+                if( !hasStringMeta )
+                {
+                    var shim = BindingUtils.CreateInstanceMethodShim(
+                        type,
+                        nameof( Object.ToString ).ChangeNameCase( options ),
+                        options,
+                        true );
                     prototype["__string"] = shim;
                 }
             }

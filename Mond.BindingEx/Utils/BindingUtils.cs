@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
-using Mond.BindingEx.Comparers;
 using Mond.BindingEx.Utils.Extensions;
 
 namespace Mond.BindingEx.Utils
@@ -19,7 +18,7 @@ namespace Mond.BindingEx.Utils
                        args,
                        BindingFlags.Public | BindingFlags.Instance,
                        options );
-                   var values = TypeConverter.MarshalToClr( args, target.Types, state );
+                   var values = TypeConverter.MarshalToClr( args, target.Types, state, options );
                    return new MondValue( state )
                    {
                        UserData = target.Method.Invoke( values ),
@@ -36,7 +35,7 @@ namespace Mond.BindingEx.Utils
                        args,
                        BindingFlags.Public | BindingFlags.Static,
                        options );
-                   var values = TypeConverter.MarshalToClr( args, target.Types, state );
+                   var values = TypeConverter.MarshalToClr( args, target.Types, state, options );
                    var result = target.Method.Invoke( null, values );
 
                    if( target.Method.ReturnType == typeof( void ) )
@@ -45,7 +44,7 @@ namespace Mond.BindingEx.Utils
                    if( result == null ) return MondValue.Null;
 
                    var mondType = TypeConverter.ToMondType( result.GetType() );
-                   return TypeConverter.MarshalToMond( result, mondType );
+                   return TypeConverter.MarshalToMond( result, mondType, state, options );
                };
 
         public static MondFunction CreateStaticMethodShim( Delegate function, MondBindingOptions options )
@@ -68,7 +67,7 @@ namespace Mond.BindingEx.Utils
                    }
 
                    var target = reflectedMembers[0];
-                   var values = TypeConverter.MarshalToClr( args, target.Types, state );
+                   var values = TypeConverter.MarshalToClr( args, target.Types, state, options );
                    var result = target.Method.DynamicInvoke( values );
 
                    if( target.Method.GetMethodInfo().ReturnType == typeof( void ) )
@@ -77,7 +76,7 @@ namespace Mond.BindingEx.Utils
                    if( result == null ) return MondValue.Null;
 
                    var mondType = TypeConverter.ToMondType( result.GetType() );
-                   return TypeConverter.MarshalToMond( result, mondType );
+                   return TypeConverter.MarshalToMond( result, mondType, state, options );
                };
 
         public static MondFunction CreateStaticOverloadGroupShim(
@@ -102,7 +101,7 @@ namespace Mond.BindingEx.Utils
                    }
 
                    var target = reflectedMembers[0];
-                   var values = TypeConverter.MarshalToClr( args, target.Types, state );
+                   var values = TypeConverter.MarshalToClr( args, target.Types, state, options );
                    var result = target.Method.Invoke( null, values );
 
                    if( target.Method.ReturnType == typeof( void ) )
@@ -111,19 +110,23 @@ namespace Mond.BindingEx.Utils
                    if( result == null ) return MondValue.Null;
 
                    var mondType = TypeConverter.ToMondType( result.GetType() );
-                   return TypeConverter.MarshalToMond( result, mondType );
+                   return TypeConverter.MarshalToMond( result, mondType, state, options );
                };
 
         public static MondInstanceFunction CreateInstanceMethodShim(
             Type type,
             string name,
-            MondBindingOptions options )
+            MondBindingOptions options,
+            bool isMetamethod = false )
             => delegate( MondState state, MondValue instance, MondValue[] args )
                {
                    // Remove the object instance from the argument list.
                    // This is primarily to prevent argument mismatch exceptions
                    // when the Mond runtime tries to dispatch a metamethod.
-                   if( ( args != null ) && ( args.Length >= 1 ) && ( args[0] == instance ) )
+                   if( ( args != null ) &&
+                       ( args.Length >= 1 ) &&
+                       ( args[0] == instance ) &&
+                       ( name.StartsWith( "__" ) || isMetamethod ) )
                        args = args.Skip( 1 ).ToArray();
 
                    var target = BindingUtils.GetTarget<MethodInfo>(
@@ -132,7 +135,7 @@ namespace Mond.BindingEx.Utils
                        args,
                        BindingFlags.Public | BindingFlags.Instance,
                        options );
-                   var values = TypeConverter.MarshalToClr( args, target.Types, state );
+                   var values = TypeConverter.MarshalToClr( args, target.Types, state, options );
                    var result = target.Method.Invoke( instance.UserData, values );
 
                    if( target.Method.ReturnType == typeof( void ) )
@@ -141,7 +144,7 @@ namespace Mond.BindingEx.Utils
                    if( result == null ) return MondValue.Null;
 
                    var mondType = TypeConverter.ToMondType( result.GetType() );
-                   return TypeConverter.MarshalToMond( result, mondType );
+                   return TypeConverter.MarshalToMond( result, mondType, state, options );
                };
 
         public static MondInstanceFunction CreateInstanceOverloadGroupShim(
@@ -172,7 +175,7 @@ namespace Mond.BindingEx.Utils
                    }
 
                    var target = reflectedMembers[0];
-                   var values = TypeConverter.MarshalToClr( args, target.Types, state );
+                   var values = TypeConverter.MarshalToClr( args, target.Types, state, options );
                    var result = target.Method.Invoke( instance.UserData, values );
 
                    if( target.Method.ReturnType == typeof( void ) )
@@ -181,7 +184,7 @@ namespace Mond.BindingEx.Utils
                    if( result == null ) return MondValue.Null;
 
                    var mondType = TypeConverter.ToMondType( result.GetType() );
-                   return TypeConverter.MarshalToMond( result, mondType );
+                   return TypeConverter.MarshalToMond( result, mondType, state, options );
                };
 
         private static Func<T, ReflectedMember<T>> CreateTargetMatcher<T>(
@@ -284,22 +287,21 @@ namespace Mond.BindingEx.Utils
 
             // ReSharper disable once AssignNullToNotNullAttribute
             var matched = members.Select( m => matcher( (T)m ) )
-                                 .Where( m => m.Matched )
-                                 .Distinct( new NumericTypeComparer<T>() );
+                                 .Where( m => m.Matched );
 
             var reflectedMembers = matched as ReflectedMember<T>[] ?? matched.ToArray();
             if( reflectedMembers.Length > 1 )
             {
                 throw new AmbiguousMatchException(
                     $"More than one {( typeof( T ) == typeof( ConstructorInfo ) ? "constructor" : "method" )}" +
-                    $" in {type.GetName()} matches the argument list" );
+                    $" in {type.GetName()} matches the argument list for {name}" );
             }
 
             if( reflectedMembers.Length == 0 )
             {
                 throw new MissingMethodException(
                     $"No {( typeof( T ) == typeof( ConstructorInfo ) ? "constructor" : "method" )} in" +
-                    $" {type.GetName()} matches the argument list" );
+                    $" {type.GetName()} matches the argument list for {name}" );
             }
 
             return reflectedMembers.First();

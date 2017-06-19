@@ -54,7 +54,10 @@ namespace Mond.BindingEx
                 return ( value.Type == MondValueType.String ) && ( value.ToString().Length == 1 );
 
             if( value.Type == MondValueType.Object )
-                return ( value.UserData != null ) && type.IsInstanceOfType( value.UserData );
+            {
+                return ( type == typeof( MondValue ) ) ||
+                       ( ( value.UserData != null ) && type.IsInstanceOfType( value.UserData ) );
+            }
 
             return TypeConverter.MatchType( value.Type, type );
         }
@@ -103,22 +106,41 @@ namespace Mond.BindingEx
             return false; // we should never get here
         }
 
-        public static MondValue[] MarshalToMond( object[] values, MondValueType[] expectedTypes )
+        public static MondValue[] MarshalToMond(
+            object[] values,
+            MondValueType[] expectedTypes,
+            MondState state,
+            MondBindingOptions options )
         {
             if( !TypeConverter.MatchTypes( expectedTypes, values.Select( v => v.GetType() ).ToArray() ) )
                 throw new ArgumentException( "Given values do not match expected types", nameof( values ) );
 
             return values.Zip( expectedTypes, ( a, b ) => new { Value = a, ExpectedType = b } )
-                         .Select( x => TypeConverter.MarshalToMond( x.Value, x.ExpectedType ) )
+                         .Select( x => TypeConverter.MarshalToMond( x.Value, x.ExpectedType, state, options ) )
                          .ToArray();
         }
 
-        public static MondValue MarshalToMond( object value, MondValueType expectedType )
+        public static MondValue MarshalToMond(
+            object value,
+            MondValueType expectedType,
+            MondState state,
+            MondBindingOptions options )
         {
-            if( !TypeConverter.MatchType( expectedType, value.GetType() ) ||
-                ( ( value == null ) &&
-                  ( expectedType != MondValueType.Null ) &&
-                  ( expectedType != MondValueType.Undefined ) ) )
+            if( value == null ) return MondValue.Null;
+
+            if( expectedType == MondValueType.Object )
+            {
+                if( state == null )
+                {
+                    throw new ArgumentNullException(
+                        nameof( state ),
+                        "Must have a valid MondState when binding an object" );
+                }
+
+                return MondObjectBinder.Bind( value.GetType(), value, state, options );
+            }
+
+            if( !TypeConverter.MatchType( expectedType, value.GetType() ) )
                 throw new ArgumentException( "Given value does not match expected type", nameof( value ) );
 
             if( value is MondValue mond )
@@ -173,17 +195,25 @@ namespace Mond.BindingEx
             return null; // we should never get here
         }
 
-        public static object[] MarshalToClr( MondValue[] values, Type[] expectedTypes, MondState state )
+        public static object[] MarshalToClr(
+            MondValue[] values,
+            Type[] expectedTypes,
+            MondState state,
+            MondBindingOptions options )
         {
             if( !TypeConverter.MatchTypes( values, expectedTypes ) )
                 throw new ArgumentException( "Given values do not match expected types", nameof( values ) );
 
             return values.Zip( expectedTypes, ( a, b ) => new { Value = a, ExpectedType = b } )
-                         .Select( x => TypeConverter.MarshalToClr( x.Value, x.ExpectedType, state ) )
+                         .Select( x => TypeConverter.MarshalToClr( x.Value, x.ExpectedType, state, options ) )
                          .ToArray();
         }
 
-        public static object MarshalToClr( MondValue value, Type expectedType, MondState state )
+        public static object MarshalToClr(
+            MondValue value,
+            Type expectedType,
+            MondState state,
+            MondBindingOptions options )
         {
             if( !TypeConverter.MatchType( value, expectedType ) )
                 throw new ArgumentException( "Given value does not match expected type", nameof( value ) );
@@ -250,7 +280,7 @@ namespace Mond.BindingEx
                         {
                             var mondTypes = TypeConverter.ToMondTypes(
                                 args.Select( a => a.GetType() ).ToArray() );
-                            var mondValues = TypeConverter.MarshalToMond( args, mondTypes );
+                            var mondValues = TypeConverter.MarshalToMond( args, mondTypes, state, options );
                             result = state.Call( value, mondValues );
                         }
 
@@ -258,7 +288,7 @@ namespace Mond.BindingEx
                             return null;
 
                         var clrType = TypeConverter.ToClrType( result );
-                        return TypeConverter.MarshalToClr( result, clrType, state );
+                        return TypeConverter.MarshalToClr( result, clrType, state, options );
                     }
 
                     if( !typeof( Delegate ).IsAssignableFrom( expectedType ) ) return (Func<object[], object>)Shim;
