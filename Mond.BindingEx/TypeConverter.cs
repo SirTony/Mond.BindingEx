@@ -61,7 +61,7 @@ namespace Mond.BindingEx
 
         public static bool MatchType( MondValueType mondType, Type clrType )
         {
-            if( clrType == typeof( MondValue ) || clrType == typeof( object ) )
+            if( ( clrType == typeof( MondValue ) ) || ( clrType == typeof( object ) ) )
                 return true;
 
             var info = clrType.GetTypeInfo();
@@ -73,13 +73,21 @@ namespace Mond.BindingEx
 
                 case MondValueType.String: return clrType == typeof( string );
 
-                case MondValueType.Number: return TypeConverter.NumericTypes.Contains( clrType ) || info.IsEnum;
+                case MondValueType.Number:
+
+                    bool IsNumeric( Type type ) => TypeConverter.NumericTypes.Contains( type ) ||
+                                                   type.GetTypeInfo().IsEnum;
+
+                    return IsNumeric( clrType ) ||
+                           ( clrType.IsConstructedGenericType &&
+                             ( clrType.GetGenericTypeDefinition() == typeof( Nullable<> ) ) &&
+                             IsNumeric( clrType.GetGenericArguments()[0] ) );
 
                 case MondValueType.Null:
                 case MondValueType.Undefined:
                     return !info.IsValueType ||
                            ( clrType.IsConstructedGenericType &&
-                             clrType.GetGenericTypeDefinition() == typeof( Nullable<> ) );
+                             ( clrType.GetGenericTypeDefinition() == typeof( Nullable<> ) ) );
 
                 case MondValueType.Function: return typeof( Delegate ).IsAssignableFrom( clrType );
 
@@ -107,11 +115,28 @@ namespace Mond.BindingEx
 
         public static MondValue MarshalToMond( object value, MondValueType expectedType )
         {
-            if( !TypeConverter.MatchType( expectedType, value.GetType() ) )
+            if( !TypeConverter.MatchType( expectedType, value.GetType() ) ||
+                ( ( value == null ) &&
+                  ( expectedType != MondValueType.Null ) &&
+                  ( expectedType != MondValueType.Undefined ) ) )
                 throw new ArgumentException( "Given value does not match expected type", nameof( value ) );
 
             if( value is MondValue mond )
                 return mond;
+
+            var type = value.GetType();
+            if( type.IsConstructedGenericType && ( type.GetGenericTypeDefinition() == typeof( Nullable<> ) ) )
+            {
+                var innerType = type.GetGenericArguments()[0];
+                dynamic nullable = value;
+                if( !TypeConverter.MatchType( expectedType, innerType ) ||
+                    ( !nullable.HasValue &&
+                      ( expectedType != MondValueType.Null ) &&
+                      ( expectedType != MondValueType.Undefined ) ) )
+                    throw new ArgumentException( "Given value does not match expected type", nameof( value ) );
+
+                value = nullable.Value;
+            }
 
             // ReSharper disable once SwitchStatementMissingSomeCases
             switch( expectedType )
@@ -177,7 +202,7 @@ namespace Mond.BindingEx
                     if( !expectedType.GetTypeInfo().IsValueType ) return null;
 
                     if( expectedType.IsConstructedGenericType &&
-                        expectedType.GetGenericTypeDefinition() == typeof( Nullable<> ) )
+                        ( expectedType.GetGenericTypeDefinition() == typeof( Nullable<> ) ) )
                         return Activator.CreateInstance( expectedType );
 
                     throw new InvalidOperationException(
@@ -194,6 +219,14 @@ namespace Mond.BindingEx
                     return str[0];
 
                 case MondValueType.Number:
+                    if( expectedType.IsConstructedGenericType &&
+                        ( expectedType.GetGenericTypeDefinition() == typeof( Nullable<> ) ) )
+                    {
+                        var innerType = expectedType.GetGenericArguments()[0];
+                        var converted = Convert.ChangeType( (double)value, innerType );
+                        return Activator.CreateInstance( expectedType, converted );
+                    }
+
                     if( !expectedType.GetTypeInfo().IsEnum ) return Convert.ChangeType( (double)value, expectedType );
 
                     var underlying = Enum.GetUnderlyingType( expectedType );
