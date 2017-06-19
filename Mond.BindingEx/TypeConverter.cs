@@ -61,7 +61,7 @@ namespace Mond.BindingEx
 
         public static bool MatchType( MondValueType mondType, Type clrType )
         {
-            if( clrType == typeof( MondValue ) )
+            if( clrType == typeof( MondValue ) || clrType == typeof( object ) )
                 return true;
 
             var info = clrType.GetTypeInfo();
@@ -76,7 +76,10 @@ namespace Mond.BindingEx
                 case MondValueType.Number: return TypeConverter.NumericTypes.Contains( clrType ) || info.IsEnum;
 
                 case MondValueType.Null:
-                case MondValueType.Undefined: return !info.IsValueType;
+                case MondValueType.Undefined:
+                    return !info.IsValueType ||
+                           ( clrType.IsConstructedGenericType &&
+                             clrType.GetGenericTypeDefinition() == typeof( Nullable<> ) );
 
                 case MondValueType.Function: return typeof( Delegate ).IsAssignableFrom( clrType );
 
@@ -170,7 +173,16 @@ namespace Mond.BindingEx
                 case MondValueType.True: return (bool)value;
 
                 case MondValueType.Null:
-                case MondValueType.Undefined: return null;
+                case MondValueType.Undefined:
+                    if( !expectedType.GetTypeInfo().IsValueType ) return null;
+
+                    if( expectedType.IsConstructedGenericType &&
+                        expectedType.GetGenericTypeDefinition() == typeof( Nullable<> ) )
+                        return Activator.CreateInstance( expectedType );
+
+                    throw new InvalidOperationException(
+                        $"Cannot bind {value.Type.GetName()} value to " +
+                        $"{expectedType.FullName} because it is a value type" );
 
                 case MondValueType.String:
                     var str = value.ToString();
@@ -227,12 +239,14 @@ namespace Mond.BindingEx
                     var shim = (Func<object[], object>)Shim;
 
                     var paramsExpr = parameters.Select( Expression.Parameter ).ToArray();
+                    // ReSharper disable once CoVariantArrayConversion
                     var paramsArr = Expression.NewArrayInit( typeof( object ), paramsExpr );
                     var invokeExpr = Expression.Call(
                         Expression.Constant( shim.Target ),
                         shim.GetMethodInfo(),
                         paramsArr );
 
+                    // ReSharper disable once TooWideLocalVariableScope
                     BlockExpression body;
                     if( invoke.ReturnType == typeof( void ) )
                         body = Expression.Block( invokeExpr );
